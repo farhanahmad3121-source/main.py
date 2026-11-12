@@ -5,9 +5,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 import time
-import re
 
 # ========================================================
 # 1. यहाँ अपना Telegram Bot Token डालो
@@ -45,8 +43,8 @@ def get_amzn_link(url):
     options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36')
     
     try:
-        # webdriver-manager अपने आप सही वर्जन वाला Driver डाउनलोड करेगा
-        service = Service(ChromeDriverManager().install())
+        # ड्राइवर का रास्ता सीधे Dockerfile से लिया जा रहा है (कोई वर्जन एरर नहीं आएगा)
+        service = Service('/usr/bin/chromedriver')
         driver = webdriver.Chrome(service=service, options=options)
         
         # Bitly का होमपेज खोलो
@@ -83,6 +81,7 @@ def get_amzn_link(url):
         except:
             pass
         
+        # एरर को साफ-साफ समझना (404, 503 या कोई और)
         error_msg = str(e)
         if "404" in error_msg:
             return f"❌ Error 404: Bitly का पेज नहीं मिला।\n⚠️ Fallback Link: {tagged_url}"
