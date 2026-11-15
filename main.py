@@ -28,29 +28,60 @@ def keep_alive():
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# यहाँ अपने दोनों फोर्स-सब्सक्रिप्शन वाले चैनलों के यूजरनेम डाल दे
+CHANNEL_1 = "@swiggylooters06"
+CHANNEL_2 = "@techhelperram" # यहाँ अपना दूसरा चैनल बदल लेना
+
+# चेक करने का फंक्शन कि यूजर ने दोनों चैनल जॉइन किए हैं या नहीं
+def check_subscription(user_id):
+    try:
+        m1 = bot.get_chat_member(CHANNEL_1, user_id)
+        m2 = bot.get_chat_member(CHANNEL_2, user_id)
+        
+        valid_statuses = ['member', 'administrator', 'creator']
+        if m1.status in valid_statuses and m2.status in valid_statuses:
+            return True
+    except Exception as e:
+        print(f"Error checking sub: {e}")
+    return False
+
 # ==========================================
-# 3. /START COMMAND & BUTTONS
+# 3. /START COMMAND & SUBSCRIPTION LOGIC
 # ==========================================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    # यूजर का असली नाम ले लेगा (ताकि हर किसी को उसका खुद का नाम दिखे)
-    user_name = message.from_user.first_name or "Hacker"
+    user_id = message.from_user.id
     
-    # इनलाइन कीबोर्ड (बटन) बनाएं
+    # पहले चेक करो कि यूजर ने दोनों चैनल जॉइन किए हैं या नहीं
+    if not check_subscription(user_id):
+        # अगर जॉइन नहीं किया है, तो यह लॉक स्क्रीन (Force Sub message) दिखेगी
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        btn_c1 = types.InlineKeyboardButton("📢 Join Channel 1", url=f"https://t.me/{CHANNEL_1.replace('@', '')}")
+        btn_c2 = types.InlineKeyboardButton("📢 Join Channel 2", url=f"https://t.me/{CHANNEL_2.replace('@', '')}")
+        btn_verify = types.InlineKeyboardButton("🔄 I Have Joined (Verify)", callback_data="check_sub")
+        markup.add(btn_c1, btn_c2, btn_verify)
+        
+        lock_text = (
+            "⚠️ **ACCESS DENIED!** ⚠️\n\n"
+            "अरे भाई! बॉट का इस्तेमाल करने से पहले हमारे **दोनों चैनल्स** को जॉइन करना ज़रूरी है।\n\n"
+            f"1️⃣ {CHANNEL_1}\n"
+            f"2️⃣ {CHANNEL_2}\n\n"
+            "चैनल जॉइन करने के बाद नीचे **'Verify'** बटन पर क्लिक करें! 👇"
+        )
+        bot.send_message(message.chat.id, lock_text, parse_mode="Markdown", reply_markup=markup)
+    else:
+        # अगर दोनों चैनल जॉइन हैं, तो सीधा फाइनल लूट एरिना दिखाओ
+        show_loot_arena(message.chat.id, message.from_user.first_name)
+
+def show_loot_arena(chat_id, user_first_name):
+    user_name = user_first_name or "Hacker"
+    
     markup = types.InlineKeyboardMarkup(row_width=1)
-    
-    # 1. मिनी ऐप खोलने वाला वेब-ऐप बटन
     web_app_url = "https://swiggy.totalh.net"
     btn_webapp = types.InlineKeyboardButton("🎯 OPEN LOOT ARENA", web_app=types.WebAppInfo(url=web_app_url))
+    btn_channel = types.InlineKeyboardButton("📢 Official Channel", url=f"https://t.me/{CHANNEL_1.replace('@', '')}")
+    markup.add(btn_webapp, btn_channel)
     
-    # 2. दोनों चैनलों के बटन (पहला फिक्स, दूसरा वाला तू अपने हिसाब से बदल लेना)
-    btn_channel1 = types.InlineKeyboardButton("📢 Join Official Channel", url="https://t.me/swiggylooters06")
-    btn_channel2 = types.InlineKeyboardButton("📢 Join Second Channel", url="https://t.me/techhelperram")
-    
-    # बटन्स को जोड़ दिया
-    markup.add(btn_webapp, btn_channel1, btn_channel2)
-    
-    # तेरी माँगी हुई डिज़ाइन और टेक्स्ट वाला फॉर्मेट (दो चैनलों के साथ)
     welcome_text = (
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🍔  SWIGGY LOOT ARENA  🍔\n"
@@ -65,13 +96,25 @@ def send_welcome(message):
         "│  🎯  Daily updated offers\n"
         "│\n"
         "└────────────────────┘\n\n"
-        "📢 STEP 1: Join our channels\n"
-        "    ├ @swiggylooters06\n"
-        "    └ @your_second_channel\n\n"
+        "📢 STEP 1: Join our official channel\n"
+        f"     └ {CHANNEL_1}\n\n"
         "🚀 STEP 2: Tap the button below to enter"
     )
-    
-    bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown", reply_markup=markup)
+    bot.send_message(chat_id, welcome_text, parse_mode="Markdown", reply_markup=markup)
+
+# जब यूजर 'Verify' बटन दबाएगा
+@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
+def verify_callback(call):
+    user_id = call.from_user.id
+    if check_subscription(user_id):
+        bot.answer_callback_query(call.id, "✅ बहुत बढ़िया! दोनों चैनल जॉइन हो गए हैं।")
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except:
+            pass
+        show_loot_arena(call.message.chat.id, call.from_user.first_name)
+    else:
+        bot.answer_callback_query(call.id, "❌ भाई, तूने अभी तक दोनों चैनल जॉइन नहीं किए हैं पूरे!", show_alert=True)
 
 # ==========================================
 # 4. MAIN EXECUTION
