@@ -1,4 +1,4 @@
 flask
 requests
-pycrypto
+pycryptodome
 urllib3
