@@ -94,7 +94,7 @@ def show_loot_arena(chat_id):
         "Hey Hacker! 👋\n\n"
         "Welcome to the ultimate food deals hub — your gateway to massive Swiggy savings.\n\n"
         "✨ **WHAT YOU GET**\n"
-        "• 🔥 Get upto ₹100 free cash swiggy food[cite: 29]\n\n"
+        "• 🔥 Get upto ₹100 free cash swiggy food\n\n"
         "🚀 **Tap the button below to enter.**"
     )
     bot.send_message(chat_id, welcome_text, parse_mode="Markdown", reply_markup=markup)
