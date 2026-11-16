@@ -8,19 +8,17 @@ import threading
 from bs4 import BeautifulSoup
 from curl_cffi import requests
 from flask import Flask
-import telebot
 
 # ==========================================
-# 1. CONFIGURATION & TELEGRAM INITIALIZATION
+# 1. CONFIGURATION
 # ==========================================
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 current_query = "Initializing..."
 
 # ==========================================
-# 2. FLASK WEB SERVER (रेंडर को जगाए रखने के लिए)
+# 2. FLASK WEB SERVER (रेंडर पोर्ट बाइंडिंग के लिए मुख्य थ्रेड पर)
 # ==========================================
 app = Flask('')
 
@@ -31,20 +29,6 @@ def home():
 def run_flask():
     port = int(os.environ.get("PORT", 8000))
     app.run(host='0.0.0.0', port=port)
-
-# ==========================================
-# 3. TELEGRAM /START COMMAND
-# ==========================================
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    global current_query
-    status_msg = (
-        "🔥 **Loot Scraper Bot is Active & Hunting!**\n\n"
-        f"🔍 **Currently Checking:** `{current_query}`\n\n"
-        "⚡ **Target:** 70%+ OFF OR Under ₹500 Testing Deals!\n"
-        "सारे सिस्टम चालू हैं भाई, अब चेक करते हैं क्या माल मिलता है। 🚀"
-    )
-    bot.reply_to(message, status_msg, parse_mode="Markdown")
 
 def send_alert_to_telegram(error_message):
     if not TELEGRAM_BOT_TOKEN or not CHAT_ID:
@@ -58,7 +42,7 @@ def send_alert_to_telegram(error_message):
         print(f"Alert Error: {e}")
 
 # ==========================================
-# 4. USER AGENTS & SEARCH QUERIES
+# 3. USER AGENTS & SEARCH QUERIES
 # ==========================================
 CHROME_USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
@@ -207,23 +191,14 @@ def run_scraper():
             time.sleep(random.uniform(10.0, 20.0))
 
 # ==========================================
-# 5. MAIN EXECUTION (Flask + Bot in Background, Scraper on Main)
+# 4. MAIN EXECUTION (Flask on Background Thread, Scraper on Main)
 # ==========================================
 if __name__ == "__main__":
-    # 1. Flask सर्वर को बैकग्राउंड में चालू करेंगे
+    # Flask को बैकग्राउंड में चलाएंगे ताकि रेंडर का पोर्ट बाइंडिंग एरर खत्म हो जाए
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.daemon = True
     flask_thread.start()
 
-    # 2. Telegram Bot Polling को बैकग्राउंड में चालू करेंगे
-    def run_telegram():
-        print("Telegram Bot Polling started in background...")
-        bot.infinity_polling(none_stop=True)
-
-    telegram_thread = threading.Thread(target=run_telegram)
-    telegram_thread.daemon = True
-    telegram_thread.start()
-
-    # 3. मुख्य थ्रेड पर अब सीधे हमारा दमदार स्क्रैपर दौड़ेगा!
     print("Starting Main Amazon Scraper Loop...")
+    # मुख्य थ्रेड पर हमारा स्क्रैपर दौड़ेगा
     run_scraper()
