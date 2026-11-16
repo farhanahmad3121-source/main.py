@@ -18,7 +18,6 @@ CHAT_ID = os.environ.get("CHAT_ID")
 
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
-# यह वेरिएबल याद रखेगा कि इस वक्त कौन सा कपड़ा/क्वेरी चेक हो रही है
 current_query = "Initializing..."
 
 # ==========================================
@@ -40,15 +39,16 @@ def keep_alive():
     t.start()
 
 # ==========================================
-# 3. TELEGRAM /START COMMAND (अब यह बताएगा कि कौन सा आइटम चेक हो रहा है)
+# 3. TELEGRAM /START COMMAND
 # ==========================================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     global current_query
     status_msg = (
-        "🔥 **Loot Scraper Bot is Active!**\n\n"
+        "🔥 **Loot Scraper Bot is Active & Hunting!**\n\n"
         f"🔍 **Currently Checking:** `{current_query}`\n\n"
-        "सारे सिस्टम चालू हैं भाई, बैकग्राउंड में डील्स ढूंढी जा रही हैं। 🚀"
+        "⚡ **Target:** 90%+ OFF OR Under ₹100 Glitch Deals!\n"
+        "सारे सिस्टम चालू हैं भाई, नजर पूरी गड़ी हुई है। 🚀"
     )
     bot.reply_to(message, status_msg, parse_mode="Markdown")
 
@@ -120,7 +120,7 @@ def run_scraper():
         session, headers = get_fresh_session()
 
         for query in queries_pool:
-            current_query = query  # यहाँ अपडेट हो जाएगा कि कौन सा कपड़ा चेक हो रहा है!
+            current_query = query
             url = f"https://www.amazon.in/s?k={query.replace(' ', '+')}"
             print(f"\n🔍 Searching Query: {query}")
 
@@ -158,46 +158,57 @@ def run_scraper():
 
                 for product in valid_products:
                     full_text = product.get_text()
+                    
+                    # दाम (Price) ढूंढने का सिस्टम
+                    price_tag = product.select_one("span.a-price span.a-offscreen") or product.select_one("span.a-price-whole")
+                    actual_price = None
+
+                    if price_tag:
+                        price_str = price_tag.get_text(strip=True).replace("₹", "").replace(",", "")
+                        price_match = re.search(r"\d+", price_str)
+                        if price_match:
+                            actual_price = int(price_match.group())
+
+                    # डिस्काउंट (%) ढूंढने का सिस्टम
                     match = re.search(r"(\d+)%\s+off", full_text, flags=re.IGNORECASE)
+                    discount_val = int(match.group(1)) if match else 0
 
-                    if match:
-                        discount_val = int(match.group(1))
-                        price_tag = product.select_one("span.a-price span.a-offscreen") or product.select_one("span.a-price-whole")
-                        actual_price = None
+                    # --- 🎯 कड़क लूट फ़िल्टर लॉजिक ---
+                    # 1. या तो दाम ₹100 से कम हो (₹5, ₹10, ₹50... कुछ भी)
+                    is_under_100 = actual_price is not None and actual_price <= 100
+                    # 2. या फिर डिस्काउंट 90% या उससे ज्यादा हो (चाहे दाम कुछ भी हो)
+                    is_mega_discount = discount_val >= 90
 
-                        if price_tag:
-                            price_str = price_tag.get_text(strip=True).replace("₹", "").replace(",", "")
-                            price_match = re.search(r"\d+", price_str)
-                            if price_match:
-                                actual_price = int(price_match.group())
+                    if is_under_100 or is_mega_discount:
+                        title_tag = product.select_one("h2 a span") or product.select_one("h2 span") or product.select_one("span.a-text-normal")
+                        title = title_tag.get_text(strip=True) if title_tag else "Clothing Item"
 
-                        is_under_100 = actual_price is not None and actual_price <= 100
-                        is_mega_discount = discount_val >= 90
+                        asin_val = product.get("data-asin")
+                        link = f"https://www.amazon.in/dp/{asin_val}"
+                        price_display = f"₹{actual_price}" if actual_price is not None else "Check Link"
+                        
+                        if is_under_100 and is_mega_discount:
+                            deal_type = f"🔥 MEGA GLITCH & {discount_val}% OFF LOOT!"
+                        elif is_under_100:
+                            deal_type = "🔥 UNDER-₹100 PRICE GLITCH!"
+                        else:
+                            deal_type = f"💥 MASSIVE {discount_val}% OFF LOOT!"
 
-                        if is_under_100 or is_mega_discount:
-                            title_tag = product.select_one("h2 a span") or product.select_one("h2 span") or product.select_one("span.a-text-normal")
-                            title = title_tag.get_text(strip=True) if title_tag else "Clothing Item"
+                        msg = (
+                            f"{deal_type}\n\n"
+                            f"🛍 Product: {title}\n"
+                            f"💰 Price: {price_display}\n"
+                            f"📉 Discount: {discount_val}%\n"
+                            f"🔗 Link: {link}"
+                        )
 
-                            asin_val = product.get("data-asin")
-                            link = f"https://www.amazon.in/dp/{asin_val}"
-                            price_display = f"₹{actual_price}" if actual_price is not None else "Check Link"
-                            deal_type = "🔥 REAL UNDER-₹100 LOOT!" if is_under_100 else "💥 BRANDED 90%+ OFF LOOT!"
-
-                            msg = (
-                                f"{deal_type} ({discount_val}% OFF)\n\n"
-                                f"🛍 Product: {title}\n"
-                                f"💰 Price: {price_display}\n"
-                                f"📉 Discount: {discount_val}%\n"
-                                f"🔗 Link: {link}"
-                            )
-
-                            print(f"✅ DEAL MATCHED! Sending to Telegram...")
-                            urllib.request.urlopen(urllib.request.Request(
-                                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                                data=urllib.parse.urlencode({"chat_id": CHAT_ID, "text": msg}).encode("utf-8"),
-                                method="POST"
-                            ), timeout=10)
-                            time.sleep(0.5)
+                        print(f"✅ DEAL MATCHED! Sending to Telegram...")
+                        urllib.request.urlopen(urllib.request.Request(
+                            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                            data=urllib.parse.urlencode({"chat_id": CHAT_ID, "text": msg}).encode("utf-8"),
+                            method="POST"
+                        ), timeout=10)
+                        time.sleep(0.5)
 
             except Exception as e:
                 print(f"⚠️ Exception Error: {e}")
