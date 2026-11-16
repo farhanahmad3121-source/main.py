@@ -117,10 +117,10 @@ def run_scraper():
 
         for query in queries_pool:
             current_query = query
-            url = f"https://www.amazon.in/s?k={query.replace(' ', '+')}"
             print(f"\n🔍 Searching Query: {query}")
 
             try:
+                url = f"https://www.amazon.in/s?k={query.replace(' ', '+')}"
                 response = session.get(url, headers=headers, impersonate="chrome", timeout=20)
                 print(f"📡 Response Status Code: {response.status_code}")
 
@@ -181,7 +181,7 @@ def run_scraper():
                         if is_under_500 and is_good_discount:
                             deal_type = f"🔥 UNDER-₹500 & {discount_val}% OFF DEAL!"
                         elif is_under_500:
-                            deal_type = "🔥 UNDER-₹500 BUDGET DEAL!"
+                            deal_type = f"🔥 UNDER-₹500 BUDGET DEAL! ({discount_val}% OFF)"
                         else:
                             deal_type = f"💥 MASSIVE {discount_val}% OFF DEAL!"
 
@@ -207,19 +207,23 @@ def run_scraper():
             time.sleep(random.uniform(10.0, 20.0))
 
 # ==========================================
-# 5. MAIN EXECUTION (Flask + Scraper + Bot)
+# 5. MAIN EXECUTION (Flask + Bot in Background, Scraper on Main)
 # ==========================================
 if __name__ == "__main__":
-    # Flask को बैकग्राउंड में चालू करेंगे
+    # 1. Flask सर्वर को बैकग्राउंड में चालू करेंगे
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.daemon = True
     flask_thread.start()
 
-    # स्क्रैपर को बैकग्राउंड में चालू करेंगे
-    scraper_thread = threading.Thread(target=run_scraper)
-    scraper_thread.daemon = True
-    scraper_thread.start()
+    # 2. Telegram Bot Polling को बैकग्राउंड में चालू करेंगे
+    def run_telegram():
+        print("Telegram Bot Polling started in background...")
+        bot.infinity_polling(none_stop=True)
 
-    print("Bot is starting Telegram Polling...")
-    # मुख्य थ्रेड पर टेलीग्राम पोलिंग चलेगी ताकि ऐप बंद न हो
-    bot.infinity_polling(none_stop=True)
+    telegram_thread = threading.Thread(target=run_telegram)
+    telegram_thread.daemon = True
+    telegram_thread.start()
+
+    # 3. मुख्य थ्रेड पर अब सीधे हमारा दमदार स्क्रैपर दौड़ेगा!
+    print("Starting Main Amazon Scraper Loop...")
+    run_scraper()
