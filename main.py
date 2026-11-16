@@ -17,7 +17,6 @@ TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
-
 current_query = "Initializing..."
 
 # ==========================================
@@ -32,11 +31,6 @@ def home():
 def run_flask():
     port = int(os.environ.get("PORT", 8000))
     app.run(host='0.0.0.0', port=port)
-
-def keep_alive():
-    t = threading.Thread(target=run_flask)
-    t.daemon = True
-    t.start()
 
 # ==========================================
 # 3. TELEGRAM /START COMMAND
@@ -71,10 +65,7 @@ CHROME_USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/125.0.6422.80 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 13; OnePlus 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.58 Mobile Safari/537.36"
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/125.0.6422.80 Mobile/15E148 Safari/604.1"
 ]
 
 CLOTHING_NAMES = [
@@ -176,7 +167,6 @@ def run_scraper():
                     match = re.search(r"(\d+)%\s+off", full_text, flags=re.IGNORECASE)
                     discount_val = int(match.group(1)) if match else 0
 
-                    # --- 🎯 UPDATED TESTING FILTER LOGIC ---
                     is_under_500 = actual_price is not None and actual_price <= 500
                     is_good_discount = discount_val >= 70
 
@@ -217,14 +207,19 @@ def run_scraper():
             time.sleep(random.uniform(10.0, 20.0))
 
 # ==========================================
-# 5. BACKGROUND THREADING
+# 5. MAIN EXECUTION (Flask + Scraper + Bot)
 # ==========================================
 if __name__ == "__main__":
-    keep_alive()
-    
+    # Flask को बैकग्राउंड में चालू करेंगे
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+
+    # स्क्रैपर को बैकग्राउंड में चालू करेंगे
     scraper_thread = threading.Thread(target=run_scraper)
     scraper_thread.daemon = True
     scraper_thread.start()
 
     print("Bot is starting Telegram Polling...")
-    bot.infinity_polling()
+    # मुख्य थ्रेड पर टेलीग्राम पोलिंग चलेगी ताकि ऐप बंद न हो
+    bot.infinity_polling(none_stop=True)
