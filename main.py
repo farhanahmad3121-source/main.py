@@ -14,9 +14,12 @@ import telebot
 # 1. CONFIGURATION & TELEGRAM INITIALIZATION
 # ==========================================
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN")
-CHAT_ID = os.environ.get("CHAT_ID") # तेरा पर्सनल चैट आईडी या चैनल आईडीजहाँ अलर्ट जाएगा
+CHAT_ID = os.environ.get("CHAT_ID")
 
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+
+# यह वेरिएबल याद रखेगा कि इस वक्त कौन सा कपड़ा/क्वेरी चेक हो रही है
+current_query = "Initializing..."
 
 # ==========================================
 # 2. FLASK WEB SERVER (रेंडर को जगाए रखने के लिए)
@@ -37,14 +40,19 @@ def keep_alive():
     t.start()
 
 # ==========================================
-# 3. TELEGRAM /START COMMAND (यह चेक करने के लिए कि बॉट चालू है या नहीं)
+# 3. TELEGRAM /START COMMAND (अब यह बताएगा कि कौन सा आइटम चेक हो रहा है)
 # ==========================================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(message, "🔥 **Loot Scraper Bot is Active & Running Smoothly!**\n\nसारे सिस्टम चालू हैं भाई, बैकग्राउंड में डील्स ढूंढी जा रही हैं। 🚀")
+    global current_query
+    status_msg = (
+        "🔥 **Loot Scraper Bot is Active!**\n\n"
+        f"🔍 **Currently Checking:** `{current_query}`\n\n"
+        "सारे सिस्टम चालू हैं भाई, बैकग्राउंड में डील्स ढूंढी जा रही हैं। 🚀"
+    )
+    bot.reply_to(message, status_msg, parse_mode="Markdown")
 
 def send_alert_to_telegram(error_message):
-    """जब भी आईपी बैन या एरर आएगा, यह फंक्शन टेलीग्राम पर चेतावनी भेज देगा"""
     if not TELEGRAM_BOT_TOKEN or not CHAT_ID:
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -103,6 +111,7 @@ def get_fresh_session():
     return session, base_headers
 
 def run_scraper():
+    global current_query
     print(f"🔥 Loot Deal Bot Active with {len(CLOTHING_NAMES)} Queries...")
     
     while True:
@@ -111,6 +120,7 @@ def run_scraper():
         session, headers = get_fresh_session()
 
         for query in queries_pool:
+            current_query = query  # यहाँ अपडेट हो जाएगा कि कौन सा कपड़ा चेक हो रहा है!
             url = f"https://www.amazon.in/s?k={query.replace(' ', '+')}"
             print(f"\n🔍 Searching Query: {query}")
 
@@ -118,10 +128,9 @@ def run_scraper():
                 response = session.get(url, headers=headers, impersonate="chrome", timeout=20)
                 print(f"📡 Response Status Code: {response.status_code}")
 
-                # अगर Amazon ने IP ब्लॉक कर दी (503 Error)
                 if response.status_code == 503:
                     print("❌ 503 Blocked! Sending Telegram Alert...")
-                    send_alert_to_telegram(f"Amazon ने IP ब्लॉक कर दी है (503 Error)!\nक्वेरी: {query}\nबॉट नया सेशन ले रहा है...")
+                    send_alert_to_telegram(f"🚨 Amazon ने IP ब्लॉक कर दी है (503 Error)!\n🔍 आखिरी चेक किया गया कपड़ा: {query}\nबॉट नया सेशन ले रहा है...")
                     time.sleep(15)
                     session, headers = get_fresh_session()
                     continue
@@ -183,7 +192,6 @@ def run_scraper():
                             )
 
                             print(f"✅ DEAL MATCHED! Sending to Telegram...")
-                            # लूट मिलते ही टेलीग्राम पर भेज देगा
                             urllib.request.urlopen(urllib.request.Request(
                                 f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
                                 data=urllib.parse.urlencode({"chat_id": CHAT_ID, "text": msg}).encode("utf-8"),
@@ -194,19 +202,17 @@ def run_scraper():
             except Exception as e:
                 print(f"⚠️ Exception Error: {e}")
 
-            # हर सर्च के बीच में 10 से 20 सेकंड का रैंडम गैप ताकि आईपी सेफ रहे
             time.sleep(random.uniform(10.0, 20.0))
 
 # ==========================================
-# 5. BACKGROUND THREADING (दोनो चीजें एक साथ चलाने के लिए)
+# 5. BACKGROUND THREADING
 # ==========================================
 if __name__ == "__main__":
-    keep_alive()  # 1. Flask सर्वर चालू रखेगा
+    keep_alive()
     
-    # 2. स्क्रैपर को बैकग्राउंड धागे (Thread) में चलाएगा ताकि टेलीग्राम कमांड ब्लॉक न हो
     scraper_thread = threading.Thread(target=run_scraper)
     scraper_thread.daemon = True
     scraper_thread.start()
 
     print("Bot is starting Telegram Polling...")
-    bot.infinity_polling()  # 3. टेलीग्राम के कमांड (/start) सुनता रहेगा
+    bot.infinity_polling()
