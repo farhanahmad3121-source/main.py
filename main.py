@@ -1,95 +1,52 @@
 import os
 import re
-import time
-from pyrogram import Client
+import telebot
 
 # ==========================================
-# 1. CONFIGURATION & CREDENTIALS
+# CONFIGURATION
 # ==========================================
-API_ID = int(os.environ.get("API_ID", 0))
-API_HASH = os.environ.get("API_HASH", "")
-SESSION_STRING = os.environ.get("SESSION_STRING", "")
+BOT_TOKEN = os.environ.get(
+    "BOT_TOKEN", ""
+)  # @BotFather वाला बॉट टोकन (Render के Environment में डालना है)
+TARGET_BOT = os.environ.get(
+    "TARGET_BOT", "@second_bot_username"
+)  # दूसरा बॉट या चैट जहाँ फाइनल लिंक भेजना है
 
-SOURCE_CHANNEL = os.environ.get("SOURCE_CHANNEL", "@Gpaysquadofficial2")
-BOT_1 = os.environ.get("BOT_1", "@first_bot_username")
-BOT_2 = os.environ.get("BOT_2", "@second_bot_username")
-FINAL_TARGET = os.environ.get("FINAL_TARGET", "me")
+if not BOT_TOKEN:
+  print("❌ Error: BOT_TOKEN is missing!")
 
-# Pyrogram क्लाइंट इनिशिएट करेंगे
-app = Client(
-    "loot_userbot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    session_string=SESSION_STRING,
-)
+bot = telebot.TeleBot(BOT_TOKEN)
 
 
 # ==========================================
-# 2. EVENT-LOOP FREE SAFE LISTENER
+# LINK EXTRACTOR & FORWARDER
 # ==========================================
-def main_loop():
-  print("🚀 Starting Userbot safely...")
-  app.start()
-  print("🚀 2-Bot Chain Userbot is running live and connected!")
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
+  try:
+    text = message.text or message.caption or ""
 
-  # चैनल के नए मैसेज लगातार चेक करने का सबसे सुरक्षित तरीका (बिना किसी Event Loop के)
-  last_processed_id = 0
+    # मैसेज में से कोई भी http/https वाला लिंक ढूंढेंगे
+    url_match = re.search(r"https?://[^\s]+", text)
 
-  while True:
-    try:
-      # सोर्स चैनल के आखिरी मैसेज फेच करेंगे
-      for message in app.get_chat_history(SOURCE_CHANNEL, limit=1):
-        if message.id > last_processed_id:
-          last_processed_id = message.id
-          text = message.text or message.caption or ""
+    if url_match:
+      extracted_link = url_match.group(0)
+      print(f"📥 Link caught: {extracted_link}")
 
-          url_match = re.search(r"https?://[^\s]+", text)
-          if url_match:
-            raw_link = url_match.group(0)
-            print(f"📥 Caught raw link from source: {raw_link}")
+      # सीधा निकाला हुआ लिंक दूसरे बॉट या टारगेट को भेज देगा
+      bot.send_message(TARGET_BOT, extracted_link)
+      print(f"🚀 Successfully forwarded clean link to {TARGET_BOT}")
+    else:
+      # अगर लिंक नहीं होगा तो बता देगा
+      bot.reply_to(message, "⚠️ Bhai, is message mein koi link nahi mila!")
 
-            # --- Step 1: BOT_1 को भेजना ---
-            app.send_message(BOT_1, raw_link)
-            print(f"📤 Sent to Bot 1 ({BOT_1})")
-
-            time.sleep(3)
-
-            # --- Step 2: BOT_1 का रिप्लाई निकालना ---
-            for bot1_msg in app.get_chat_history(BOT_1, limit=1):
-              bot1_text = bot1_msg.text or bot1_msg.caption or ""
-              link_match_1 = re.search(r"https?://[^\s]+", bot1_text)
-
-              if link_match_1:
-                intermediate_link = link_match_1.group(0)
-                print(f"🔗 Extracted link from Bot 1: {intermediate_link}")
-
-                # --- Step 3: BOT_2 को भेजना ---
-                app.send_message(BOT_2, intermediate_link)
-                print(f"📤 Sent to Bot 2 ({BOT_2})")
-
-                time.sleep(3)
-
-                # --- Step 4: BOT_2 का आउटपुट टारगेट पर भेजना ---
-                for bot2_msg in app.get_chat_history(BOT_2, limit=1):
-                  bot2_text = bot2_msg.text or bot2_msg.caption or ""
-                  link_match_2 = re.search(r"https?://[^\s]+", bot2_text)
-                  final_output = (
-                      link_match_2.group(0) if link_match_2 else bot2_text
-                  )
-
-                  app.send_message(FINAL_TARGET, final_output)
-                  print(
-                      f"🚀 Delivered final link to Target ({FINAL_TARGET})!"
-                  )
-                  break
-              break
-
-    except Exception as e:
-      print(f"⚠️ Minor loop error (retrying): {e}")
-
-    # हर 5 सेकंड में नया मैसेज चेक करेगा ताकि सर्वर पर लोड न पड़े
-    time.sleep(5)
+  except Exception as e:
+    print(f"❌ Error: {e}")
 
 
+# ==========================================
+# RUNNING 24/7
+# ==========================================
 if __name__ == "__main__":
-  main_loop()
+  print("🚀 Simple Link Bot is running 24/7...")
+  bot.infinity_polling()
