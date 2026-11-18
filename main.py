@@ -4,12 +4,25 @@ import os
 import random
 import requests
 from bs4 import BeautifulSoup
+from flask import Flask
 
-# --- DIRECT CONFIGURATION ---
-TELEGRAM_BOT_TOKEN = "YAHAN_APNA_BOT_TOKEN_DAL_DE"  # यहाँ अपना बोट टोकन डाल दे
-TELEGRAM_CHAT_ID = "YAHAN_APNA_CHAT_ID_YA_CHANNEL"       # यहाँ अपनी पर्सनल चैट आईडी या चैनल आईडी डाल दे
+# --- RENDER KEEP-ALIVE SERVER ---
+app = Flask(__name__)
 
-CHECK_INTERVAL = 2   # हर 2 सेकंड की सुपर-फास्ट स्पीड
+@app.route('/')
+def home():
+    return "All-Sites 90% Loot Bot is Running 24/7!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
+# --- DIRECT CONFIGURATION (यहाँ अपना बॉट टोकन और अपनी चैनल/चैट आईडी सीधा डाल दे) ---
+TELEGRAM_BOT_TOKEN = "YAHAN_APNA_BOT_TOKEN_DAL_DE"  # अपना बोट टोकन यहाँ डालें
+TELEGRAM_CHAT_ID = "YAHAN_APNA_CHANNEL_OR_CHAT_ID"       # अपनी चैनल आईडी या चैट आईडी यहाँ डालें
+
+# सुपर-फास्ट स्पीड के लिए इंटरवल
+CHECK_INTERVAL = 2   
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -19,6 +32,7 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36"
 ]
 
+# तुम्हारी दी गई सभी 8 वेबसाइट्स की लिस्ट
 TARGET_URLS = [
     "https://www.desidime.com/new",
     "https://www.indiafreestuff.in/",
@@ -44,11 +58,9 @@ def send_telegram(msg):
         "disable_web_page_preview": False
     }
     try:
-        response = requests.post(url, data=payload, timeout=5)
-        if response.status_code != 200:
-            print(f"[Telegram API Error]: {response.text}")
+        requests.post(url, data=payload, timeout=5)
     except Exception as e:
-        print(f"[Telegram Connection Error]: {e}")
+        print(f"[Telegram Error]: {e}")
 
 def scrape_all_sources():
     headers = {
@@ -121,8 +133,16 @@ def scrape_all_sources():
         except Exception as e:
             print(f"[Scraper Error for {url}]: {e}")
 
-if __name__ == "__main__":
-    print("🚀 Direct Telegram Loot Bot Started (No Website Output)...")
+def tracker_loop():
+    print("🚀 All-Sites Mega Loot Bot Started...")
     while True:
         scrape_all_sources()
         time.sleep(CHECK_INTERVAL)
+
+if __name__ == "__main__":
+    import threading
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+    
+    tracker_loop()
