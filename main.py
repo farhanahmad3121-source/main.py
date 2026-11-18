@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "All-Sites 90% Loot Bot is Running 24/7!"
+    return "Strict 90% Loot Bot is Running 24/7!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -21,7 +21,6 @@ def run_flask():
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
-# सुपर-फास्ट स्पीड के लिए इंटरवल
 CHECK_INTERVAL = 2   
 
 USER_AGENTS = [
@@ -32,7 +31,6 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36"
 ]
 
-# आपकी सभी 8 वेबसाइट्स की लिस्ट
 TARGET_URLS = [
     "https://www.desidime.com/new",
     "https://www.indiafreestuff.in/",
@@ -48,7 +46,7 @@ seen_deals = set()
 
 def send_telegram(msg):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("[Error]: Telegram Bot Token or Chat ID not found in Environment Variables!")
+        print("[Error]: Telegram Bot Token or Chat ID not found!")
         return
     
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -91,25 +89,33 @@ def scrape_all_sources():
                 if any(bad in card_text.lower() for bad in ["telegram channel", "whatsapp group", "chrome extension", "android app", "ios app"]):
                     continue
 
-                # --- 90% या ₹100 से कम का सख्त लूट फिल्टर ---
+                # --- एकदम सख्त 90%+ या ₹100 के अंदर का फिल्टर ---
                 is_loot = False
                 
+                # 1. प्रतिशत चेक करें: सिर्फ 90 से 100% तक वाले ही मानेंगे
                 match_pct = re.findall(r'(\d{2,3})\s*%', card_text)
-                for p in match_pct:
-                    if int(p) >= 90:
-                        is_loot = True
-                        break
+                for p_str in match_pct:
+                    try:
+                        p_val = int(p_str)
+                        if 90 <= p_val <= 100:
+                            is_loot = True
+                            break
+                    except:
+                        pass
                 
+                # 2. अगर प्रतिशत 90% नहीं है, तो कीमत चेक करें (₹100 के अंदर)
                 if not is_loot:
-                    prices = re.findall(r'[₹\$]\s*([\d,]+)', card_text)
-                    if prices:
+                    # भारतीय रुपए (₹) वाले दाम चेक करें
+                    inr_prices = re.findall(r'₹\s*([\d,]+)', card_text)
+                    if inr_prices:
                         try:
-                            current_price = int(prices[-1].replace(',', ''))
-                            if 0 <= current_price <= 100:
+                            cur_price = int(inr_prices[-1].replace(',', ''))
+                            if 0 <= cur_price <= 100:
                                 is_loot = True
                         except:
                             pass
 
+                # अगर दोनों में से एक भी शर्त पूरी नहीं हुई, तो इस डील को तुरंत कचरे में डाल दो (भोज दो)
                 if not is_loot:
                     continue
 
@@ -128,7 +134,7 @@ def scrape_all_sources():
 
                 if deal_signature not in seen_deals:
                     seen_deals.add(deal_signature)
-                    alert_msg = f"🚨 🔥 MEGA LOOT DEAL (90%+ OFF / Under ₹100)\n\n📦 {card_text[:180]}...\n🔗 {link}"
+                    alert_msg = f"🚨 🔥 STRICT 90%+ OR UNDER ₹100 LOOT\n\n📦 {card_text[:180]}...\n🔗 {link}"
                     print(alert_msg)
                     send_telegram(alert_msg)
 
@@ -136,7 +142,7 @@ def scrape_all_sources():
             print(f"[Scraper Error for {url}]: {e}")
 
 def tracker_loop():
-    print("🚀 All-Sites Mega Loot Bot Started...")
+    print("🚀 Strict 90% Loot Bot Started...")
     while True:
         scrape_all_sources()
         time.sleep(CHECK_INTERVAL)
