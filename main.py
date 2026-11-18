@@ -10,16 +10,16 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Strict Loot Tracker Bot is Running 24/7!"
+    return "Visual-Matched Loot Bot is Running 24/7!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# --- SCRAPER CONFIGURATION ---
+# --- CONFIGURATION ---
 CHECK_INTERVAL = 60  
-MAX_PRICE = 100      # केवल ₹100 तक का सामान
-MIN_DISCOUNT = 90    # केवल 90% या उससे ऊपर का डिस्काउंट
+MAX_PRICE = 100      # केवल ₹100 या उससे कम का सामान
+MIN_DISCOUNT = 90    # केवल 90% या उससे ऊपर का डिस्काउंट (90%+)
 
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "") 
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
@@ -48,29 +48,53 @@ def send_telegram(msg):
     except Exception as e:
         print(f"[Telegram Error]: {e}")
 
-def is_strict_loot(title):
-    text = title.lower()
+def parse_and_check_deal(text):
+    # टेक्स्ट को साफ करें
+    clean_text = re.sub(r'\s+', ' ', text)
     
-    # 1. सटीक डिस्काउंट ढूंढना (जैसे "90% off", "92% off", "95% off")
-    disc_match = re.search(r'(\d{2,3})\s*%\s*(?:off|discount)', text)
-    if disc_match:
-        discount_val = int(disc_match.group(1))
-        if discount_val >= MIN_DISCOUNT:
-            return True  # 90% या उससे ज़्यादा है, पास!
+    matched_discount = 0
+    matched_price = 999999
 
-    # 2. सटीक कीमत ढूंढना (जैसे "₹49", "Rs 99", "Rs. 50")
-    price_match = re.search(r'(?:₹|rs\.?)\s*(\d+)', text)
-    if price_match:
-        price = int(price_match.group(1))
-        if 0 < price <= MAX_PRICE:
-            return True  # ₹100 के अंदर है, पास!
+    # 1. स्क्रीनशॉट के हिसाब से डिस्काउंट ढूँढना (जैसे "91%", "90% off", "(91%)")
+    disc_patterns = [
+        r'(\d{2,3})\s*%\s*off',
+        r'\(?\s*(\d{2,3})\s*%\s*\)?',
+        r'flat\s*(\d{2,3})\s*%'
+    ]
+    for pat in disc_patterns:
+        match = re.search(pat, clean_text, re.IGNORECASE)
+        if match:
+            val = int(match.group(1))
+            if val > matched_discount:
+                matched_discount = val
 
-    # 3. सॉलिड कीवर्ड्स (Free, 100% off, ₹1 loot आदि)
-    loot_keywords = ["freebie", "100% off", "99% off", "95% off", "90% off", "rs.1", "rs 1", "₹1", "₹9", "₹10", "₹49", "₹99"]
-    if any(kw in text for kw in loot_keywords):
-        return True
+    # 2. स्क्रीनशॉट के हिसाब से ऑफर प्राइस ढूँढना (जैसे "₹189", "Rs. 9", "₹ 49")
+    price_patterns = [
+        r'(?:₹|rs\.?)\s*(\d+(?:,\d+)*)',
+    ]
+    
+    # पहली कीमत आमतौर पर Current/Offer Price होती है (जैसा स्क्रीनशॉट में ₹158, ₹189, ₹9 दिया है)
+    all_prices = []
+    for pat in price_patterns:
+        found = re.findall(pat, clean_text, re.IGNORECASE)
+        for p in found:
+            clean_p = int(p.replace(',', ''))
+            all_prices.append(clean_p)
 
-    return False
+    if all_prices:
+        # सबसे पहली मिलने वाली कीमत ही ऑफर प्राइस होती है
+        matched_price = all_prices[0]
+
+    # --- फाइनल स्ट्रिक्ट फिल्टर लॉजिक ---
+    # शर्त A: डिस्काउंट 90% या उससे ज्यादा हो
+    if matched_discount >= MIN_DISCOUNT:
+        return True, f"🔥 {matched_discount}% OFF MEGA LOOT!"
+
+    # शर्त B: कीमत ₹100 या उससे कम हो (और 0 न हो)
+    if 0 < matched_price <= MAX_PRICE:
+        return True, f"💥 Rs.{matched_price} CHEAP LOOT!"
+
+    return False, ""
 
 def scrape_site(name, url):
     try:
@@ -80,23 +104,31 @@ def scrape_site(name, url):
 
         soup = BeautifulSoup(resp.text, "html.parser")
         
-        for a_tag in soup.find_all("a", href=True):
-            title = a_tag.get_text(" ", strip=True)
-            link = a_tag["href"]
-
-            if len(title) < 15 or len(title) > 150:
+        # हर एक प्रोडक्ट/डील कार्ड को टारगेट करें
+        for card in soup.find_all(['div', 'article', 'li', 'tr']):
+            card_text = card.get_text(" ", strip=True)
+            
+            # फालतू छोटे-मोटे टेक्स्ट ब्लॉक छोड़ दें
+            if len(card_text) < 30 or len(card_text) > 500:
                 continue
 
+            # डील का लिंक ढूँढें
+            link_tag = card.find('a', href=True)
+            if not link_tag:
+                continue
+            
+            link = link_tag['href']
             if not link.startswith("http"):
                 link = url.rstrip("/") + "/" + link.lstrip("/")
 
             if link in seen_deals:
                 continue
 
-            # अब यह पूरी तरह सख्त चेकिंग करेगा
-            if is_strict_loot(title):
+            # चेक करें कि क्या यह आपकी शर्तों पर खरा उतरता है
+            is_loot, tag_msg = parse_and_check_deal(card_text)
+            if is_loot:
                 seen_deals.add(link)
-                alert_msg = f"🔥 REAL LOOT FOUND ({name}) 🔥\n\n📦 {title}\n🔗 {link}"
+                alert_msg = f"{tag_msg} ({name})\n\n📦 {card_text[:180]}...\n🔗 {link}"
                 print(alert_msg)
                 send_telegram(alert_msg)
 
@@ -104,7 +136,7 @@ def scrape_site(name, url):
         print(f"[{name}] Error: {e}")
 
 def tracker_loop():
-    print("🚀 Strict Loot Filter Started (90%+ or ₹100 below only)...")
+    print("🚀 Visual-Matched Loot Bot Started...")
     while True:
         for site_name, site_url in SITES.items():
             scrape_site(site_name, site_url)
