@@ -1,1 +1,1 @@
-web: python loot_tracker.py
+web: python main.py
