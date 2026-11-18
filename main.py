@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "PriceHistory Direct-Link Bot is Running 24/7!"
+    return "Direct Amazon Deals Bot is Running 24/7!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -31,7 +31,8 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36"
 ]
 
-TARGET_URL = "https://pricehistory.app/deals"
+# अब हम सीधे ऐसी वेबसाइट्स या पेजों को लेंगे जो डायरेक्ट अमेज़न/फ्लिपकार्ट के लिंक्स देते हैं
+TARGET_URL = "https://www.dealsmagnet.com/"
 
 seen_deals = set()
 
@@ -44,7 +45,7 @@ def send_telegram(msg):
     except Exception as e:
         print(f"[Telegram Error]: {e}")
 
-def scrape_pricehistory():
+def scrape_direct_deals():
     try:
         headers = {
             "User-Agent": random.choice(USER_AGENTS),
@@ -64,52 +65,33 @@ def scrape_pricehistory():
             if len(card_text) < 25 or len(card_text) > 800:
                 continue
 
-            if "Get Deal" not in card_text and "₹" not in card_text:
+            # चेक करें कि क्या यह अमेज़न या फ्लिपकार्ट से जुड़ी डील है
+            if "amazon" not in card_text.lower() and "flipkart" not in card_text.lower():
                 continue
 
-            if any(bad in card_text.lower() for bad in ["telegram channel", "whatsapp group", "chrome extension", "android app", "ios app"]):
+            link_tag = card.find('a', href=True)
+            if not link_tag:
                 continue
-
-            # अब हम कार्ड के अंदर सभी लिंक्स (<a> tags) की जाँच करेंगे ताकि कोई असली एक्सटर्नल या डायरेक्ट स्टोर लिंक मिल सके
-            all_links = card.find_all('a', href=True)
-            target_link = ""
-
-            for a_tag in all_links:
-                href = a_tag['href']
-                # चेक करें कि क्या यह किसी असली शॉपिंग साइट (amazon, flipkart आदि) का लिंक है
-                if any(store in href.lower() for store in ["amazon", "flipkart", "myntra", "ajio", "deal", "out", "redirect"]):
-                    target_link = href
-                    break
             
-            # अगर कोई खास स्टोर लिंक नहीं मिला, तो कार्ड का पहला कोई भी ढंग का लिंक ले लेंगे लेकिन /deals वाला मुख्य पेज नहीं होना चाहिए
-            if not target_link:
-                for a_tag in all_links:
-                    href = a_tag['href']
-                    if href and "/deals" not in href and href != "#":
-                        target_link = href
-                        break
-
-            # अगर फिर भी सही लिंक न मिले, तो कम से कम टारगेट URL ही रहने दें
-            if not target_link or target_link == "#":
-                target_link = TARGET_URL
-            elif not target_link.startswith("http"):
-                target_link = "https://pricehistory.app" + ("/" if not target_link.startswith("/") else "") + target_link
+            link = link_tag['href']
+            if not link.startswith("http"):
+                link = TARGET_URL.rstrip("/") + "/" + link.lstrip("/")
 
             deal_signature = card_text[:50]
 
             if deal_signature not in seen_deals:
                 seen_deals.add(deal_signature)
-                alert_msg = f"🔥 AMAZON/DEAL (PriceHistory)\n\n📦 {card_text[:180]}...\n🔗 {target_link}"
+                alert_msg = f"🔥 DIRECT STORE DEAL\n\n📦 {card_text[:180]}...\n🔗 {link}"
                 print(alert_msg)
                 send_telegram(alert_msg)
 
     except Exception as e:
-        print(f"[PriceHistory Error]: {e}")
+        print(f"[Scraper Error]: {e}")
 
 def tracker_loop():
-    print("🚀 PriceHistory Direct-Link Bot Started...")
+    print("🚀 Direct Store Link Bot Started...")
     while True:
-        scrape_pricehistory()
+        scrape_direct_deals()
         time.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":
