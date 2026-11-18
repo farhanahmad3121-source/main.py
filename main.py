@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Zero-Price & 90%+ Loot Bot is Running 24/7!"
+    return "Strict 90%+ Loot Bot is Running 24/7!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -18,8 +18,8 @@ def run_flask():
 
 # --- CONFIGURATION ---
 CHECK_INTERVAL = 60  
-MAX_PRICE = 100      # ₹0 से ₹100 तक का सामान
-MIN_DISCOUNT = 90    # 90% या उससे ऊपर का डिस्काउंट
+MAX_PRICE = 100      # सामान ₹100 के अंदर होना चाहिए
+MIN_DISCOUNT = 90    # और डिस्काउंट कम्‍पल्‍सरी 90% या उससे ऊपर होना चाहिए!
 
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "") 
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
@@ -53,13 +53,11 @@ def parse_and_check_deal(text):
     matched_discount = 0
     matched_price = 999999
 
-    # 0. विशेष रूप से ₹0 (फ्री / 100% कैशबैक) चेक करें
-    if "₹0" in clean_text or "rs.0" in clean_text.lower() or "100% cashback" in clean_text.lower() or "free" in clean_text.lower():
-        # चेक करें कि क्या सच में जीरो या फ्री है
-        if "₹0" in clean_text or "rs. 0" in clean_text.lower() or "100% cashback" in clean_text.lower():
-            return True, "🎁 RS.0 / FREE 100% CASHBACK LOOT!"
+    # 0. अगर बिल्कुल फ्री या ₹0 वाला है (100% कैशबैक / Free)
+    if "₹0" in clean_text or "rs.0" in clean_text.lower() or "100% cashback" in clean_text.lower():
+        return True, "🎁 RS.0 / FREE 100% CASHBACK LOOT!"
 
-    # 1. डिस्काउंट चेक (जैसे 90%, 95%, 100%, या ब्रैकेट वाला (100%))
+    # 1. असली डिस्काउंट ढूँढना (जैसे 90%, 95%, 99% off)
     disc_patterns = [
         r'(\d{2,3})\s*%\s*off',
         r'\(?\s*(\d{2,3})\s*%\s*\)?',
@@ -72,7 +70,7 @@ def parse_and_check_deal(text):
             if val > matched_discount:
                 matched_discount = val
 
-    # 2. कीमत चेक (जैसे ₹0, ₹9, ₹50)
+    # 2. कीमत ढूँढना (जैसे ₹10, ₹50, ₹99)
     price_patterns = [
         r'(?:₹|rs\.?)\s*(\d+(?:,\d+)*)',
     ]
@@ -86,13 +84,14 @@ def parse_and_check_deal(text):
     if all_prices:
         matched_price = all_prices[0]
 
-    # --- फाइनल स्ट्रिक्ट फिल्टर ---
+    # --- नया और सख्त नियम (Strict Rule) ---
+    # नियम 1: डिस्काउंट कम से कम 90% या उससे ऊपर होना ही चाहिए!
     if matched_discount >= MIN_DISCOUNT:
-        return True, f"🔥 {matched_discount}% OFF MEGA LOOT!"
+        return True, f"🔥 {matched_discount}% OFF STRICT LOOT!"
 
-    # अब इसमें 0 को भी शामिल कर लिया है (0 से 100 के बीच)
-    if 0 <= matched_price <= MAX_PRICE:
-        return True, f"💥 Rs.{matched_price} CHEAP LOOT!"
+    # नियम 2: अगर कीमत ₹100 के अंदर है, तो साथ में उस पर 90% या उससे ऊपर का डिस्काउंट होना जरूरी है (ताकि कम डिस्काउंट वाले सस्ते कवर्स या फालतू सामान छट जाएं)
+    if (0 <= matched_price <= MAX_PRICE) and (matched_discount >= MIN_DISCOUNT):
+        return True, f"💥 Rs.{matched_price} & {matched_discount}% OFF LOOT!"
 
     return False, ""
 
@@ -132,7 +131,7 @@ def scrape_site(name, url):
         print(f"[{name}] Error: {e}")
 
 def tracker_loop():
-    print("🚀 Zero-Price Enabled Loot Bot Started...")
+    print("🚀 Strict 90%+ Filter Loot Bot Started...")
     while True:
         for site_name, site_url in SITES.items():
             scrape_site(site_name, site_url)
