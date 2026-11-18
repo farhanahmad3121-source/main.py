@@ -11,14 +11,14 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "PriceHistory All-Deals Bot is Running 24/7!"
+    return "PriceHistory Clean Deals Bot is Running 24/7!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
 # --- CONFIGURATION ---
-CHECK_INTERVAL = 5   # हर 5 सेकंड में सुपर-फास्ट चेकिंग
+CHECK_INTERVAL = 5   # हर 5 सेकंड में चेकिंग
 
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "") 
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
@@ -31,7 +31,6 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36"
 ]
 
-# अब सिर्फ और सिर्फ यही एक वेबसाइट रहेगी!
 TARGET_URL = "https://pricehistory.app/deals"
 
 seen_deals = set()
@@ -58,26 +57,36 @@ def scrape_pricehistory():
 
         soup = BeautifulSoup(resp.text, "html.parser")
         
-        # पेज के सभी डील्स वाले कार्ड्स को उठाएगा
-        cards = soup.find_all(['div', 'article', 'li', 'box', 'tr', 'a'])[:30]
+        # पेज के प्रोडक्ट कार्ड्स को टारगेट करें
+        cards = soup.find_all(['div', 'article', 'li', 'box'])
         
         for card in cards:
             card_text = card.get_text(" ", strip=True)
-            if len(card_text) < 15 or len(card_text) > 800:
+            
+            # बहुत छोटे या बहुत बड़े टेक्स्ट को छोड़ दें
+            if len(card_text) < 20 or len(card_text) > 800:
                 continue
 
-            link_tag = card if card.name == 'a' else card.find('a', href=True)
-            if not link_tag or not link_tag.has_attr('href'):
+            # सबसे जरूरी फिल्टर: कार्ड के अंदर 'Get Deal' बटन या '₹' / '%' होना अनिवार्य है ताकि फालतू मेन्यू हट जाएं
+            if "Get Deal" not in card_text and "₹" not in card_text and "%" not in card_text:
+                continue
+
+            # नेविगेशन या ऐप डाउनलोड वाले लिंक्स को कतई न उठाएं
+            if any(bad in card_text.lower() for bad in ["telegram channel", "whatsapp group", "chrome extension", "android app", "ios app"]):
+                continue
+
+            link_tag = card.find('a', href=True)
+            if not link_tag:
                 continue
             
             link = link_tag['href']
             if not link.startswith("http"):
                 link = "https://pricehistory.app" + "/" + link.lstrip("/")
 
-            # अगर यह डील पहले नहीं देखी है, तो बिना किसी डिस्काउंट कंडीशन के सीधा भेज दो!
+            # अगर यह नया डील कार्ड है, तो सीधा टेलीग्राम पर ठेल दो!
             if link not in seen_deals:
                 seen_deals.add(link)
-                alert_msg = f"🔥 NEW DEAL (PriceHistory)\n\n📦 {card_text[:180]}...\n🔗 {link}"
+                alert_msg = f"🔥 NEW PRODUCT DEAL (PriceHistory)\n\n📦 {card_text[:180]}...\n🔗 {link}"
                 print(alert_msg)
                 send_telegram(alert_msg)
 
@@ -85,7 +94,7 @@ def scrape_pricehistory():
         print(f"[PriceHistory Error]: {e}")
 
 def tracker_loop():
-    print("🚀 PriceHistory All-Deals Bot Started...")
+    print("🚀 PriceHistory Clean Deals Bot Started...")
     while True:
         scrape_pricehistory()
         time.sleep(CHECK_INTERVAL)
