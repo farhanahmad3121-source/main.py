@@ -4,25 +4,12 @@ import os
 import random
 import requests
 from bs4 import BeautifulSoup
-from flask import Flask
 
-# --- RENDER KEEP-ALIVE SERVER ---
-app = Flask(__name__)
+# --- DIRECT CONFIGURATION ---
+TELEGRAM_BOT_TOKEN = "YAHAN_APNA_BOT_TOKEN_DAL_DE"  # यहाँ अपना बोट टोकन डाल दे
+TELEGRAM_CHAT_ID = "YAHAN_APNA_CHAT_ID_YA_CHANNEL"       # यहाँ अपनी पर्सनल चैट आईडी या चैनल आईडी डाल दे
 
-@app.route('/')
-def home():
-    return "8-Sites Mega Loot Deals Bot is Running 24/7!"
-
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
-
-# --- DIRECT CONFIGURATION (यहाँ अपना बॉट टोकन और चैनल आईडी सीधा डाल दे) ---
-TELEGRAM_BOT_TOKEN = "YAHAN_APNA_BOT_TOKEN_DAL_DE"  # उदाहरण: "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-TELEGRAM_CHAT_ID = "@Gpaysquadofficial2"       # उदाहरण: "@TechHackersOfficial"
-
-# सुपर-फास्ट स्पीड के लिए इंटरवल
-CHECK_INTERVAL = 2   
+CHECK_INTERVAL = 2   # हर 2 सेकंड की सुपर-फास्ट स्पीड
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -32,7 +19,6 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36"
 ]
 
-# तुम्हारी दी गई सभी 8 वेबसाइट्स की फाइनल लिस्ट
 TARGET_URLS = [
     "https://www.desidime.com/new",
     "https://www.indiafreestuff.in/",
@@ -58,9 +44,11 @@ def send_telegram(msg):
         "disable_web_page_preview": False
     }
     try:
-        requests.post(url, data=payload, timeout=5)
+        response = requests.post(url, data=payload, timeout=5)
+        if response.status_code != 200:
+            print(f"[Telegram API Error]: {response.text}")
     except Exception as e:
-        print(f"[Telegram Error]: {e}")
+        print(f"[Telegram Connection Error]: {e}")
 
 def scrape_all_sources():
     headers = {
@@ -126,23 +114,15 @@ def scrape_all_sources():
 
                 if deal_signature not in seen_deals:
                     seen_deals.add(deal_signature)
-                    alert_msg = f"🚨 🔥 8-SITES MEGA LOOT (90%+ OFF / Under ₹100)\n\n📦 {card_text[:180]}...\n🔗 {link}"
+                    alert_msg = f"🚨 🔥 MEGA LOOT DEAL (90%+ OFF / Under ₹100)\n\n📦 {card_text[:180]}...\n🔗 {link}"
                     print(alert_msg)
                     send_telegram(alert_msg)
 
         except Exception as e:
             print(f"[Scraper Error for {url}]: {e}")
 
-def tracker_loop():
-    print("🚀 8-Sites Mega Loot Bot Started...")
+if __name__ == "__main__":
+    print("🚀 Direct Telegram Loot Bot Started (No Website Output)...")
     while True:
         scrape_all_sources()
         time.sleep(CHECK_INTERVAL)
-
-if __name__ == "__main__":
-    import threading
-    t = threading.Thread(target=run_flask)
-    t.daemon = True
-    t.start()
-    
-    tracker_loop()
