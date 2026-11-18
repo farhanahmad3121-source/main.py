@@ -11,14 +11,14 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "PriceHistory Precise Deals Bot is Running 24/7!"
+    return "PriceHistory Direct-Link Bot is Running 24/7!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
 # --- CONFIGURATION ---
-CHECK_INTERVAL = 5   # हर 5 सेकंड में चेकिंग
+CHECK_INTERVAL = 5   
 
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "") 
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
@@ -56,43 +56,50 @@ def scrape_pricehistory():
             return
 
         soup = BeautifulSoup(resp.text, "html.parser")
-        
-        # पेज के सभी प्रोडक्ट कार्ड्स को ढूँढें
         cards = soup.find_all(['div', 'article', 'li', 'box'])
         
         for card in cards:
             card_text = card.get_text(" ", strip=True)
             
-            # फालतू या छोटे टेक्स्ट को छोड़ें
             if len(card_text) < 25 or len(card_text) > 800:
                 continue
 
-            # केवल असली डील कार्ड्स लें जिनमें प्राइस या 'Get Deal' हो
             if "Get Deal" not in card_text and "₹" not in card_text:
                 continue
 
-            # फालतू नेविगेशन या ऐप डाउनलोड लिंक्स को छाँट दें
             if any(bad in card_text.lower() for bad in ["telegram channel", "whatsapp group", "chrome extension", "android app", "ios app"]):
                 continue
 
-            link_tag = card.find('a', href=True)
-            if not link_tag:
-                continue
-            
-            link = link_tag['href']
-            
-            # अगर लिंक खाली है या सिर्फ '#' या होमपेज है, तो उसे सुधार कर सही डील पेज बना लें
-            if not link or link == "#" or link == "/" or link.endswith("pricehistory.app/"):
-                link = TARGET_URL
-            elif not link.startswith("http"):
-                link = "https://pricehistory.app" + ("/" if not link.startswith("/") else "") + link
+            # अब हम कार्ड के अंदर सभी लिंक्स (<a> tags) की जाँच करेंगे ताकि कोई असली एक्सटर्नल या डायरेक्ट स्टोर लिंक मिल सके
+            all_links = card.find_all('a', href=True)
+            target_link = ""
 
-            # प्रोडक्ट के नाम/텍스트 की शुरुआती लाइन को यूनिक आईडी मानेंगे ताकि डुप्लीकेट न हो
+            for a_tag in all_links:
+                href = a_tag['href']
+                # चेक करें कि क्या यह किसी असली शॉपिंग साइट (amazon, flipkart आदि) का लिंक है
+                if any(store in href.lower() for store in ["amazon", "flipkart", "myntra", "ajio", "deal", "out", "redirect"]):
+                    target_link = href
+                    break
+            
+            # अगर कोई खास स्टोर लिंक नहीं मिला, तो कार्ड का पहला कोई भी ढंग का लिंक ले लेंगे लेकिन /deals वाला मुख्य पेज नहीं होना चाहिए
+            if not target_link:
+                for a_tag in all_links:
+                    href = a_tag['href']
+                    if href and "/deals" not in href and href != "#":
+                        target_link = href
+                        break
+
+            # अगर फिर भी सही लिंक न मिले, तो कम से कम टारगेट URL ही रहने दें
+            if not target_link or target_link == "#":
+                target_link = TARGET_URL
+            elif not target_link.startswith("http"):
+                target_link = "https://pricehistory.app" + ("/" if not target_link.startswith("/") else "") + target_link
+
             deal_signature = card_text[:50]
 
             if deal_signature not in seen_deals:
                 seen_deals.add(deal_signature)
-                alert_msg = f"🔥 NEW DEAL (PriceHistory)\n\n📦 {card_text[:180]}...\n🔗 {link}"
+                alert_msg = f"🔥 AMAZON/DEAL (PriceHistory)\n\n📦 {card_text[:180]}...\n🔗 {target_link}"
                 print(alert_msg)
                 send_telegram(alert_msg)
 
@@ -100,7 +107,7 @@ def scrape_pricehistory():
         print(f"[PriceHistory Error]: {e}")
 
 def tracker_loop():
-    print("🚀 PriceHistory Precise Deals Bot Started...")
+    print("🚀 PriceHistory Direct-Link Bot Started...")
     while True:
         scrape_pricehistory()
         time.sleep(CHECK_INTERVAL)
