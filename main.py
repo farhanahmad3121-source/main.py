@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Strict 90%+ Loot Bot is Running 24/7!"
+    return "Multi-Site Strict Loot Bot is Running 24/7!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -18,21 +18,24 @@ def run_flask():
 
 # --- CONFIGURATION ---
 CHECK_INTERVAL = 60  
-MAX_PRICE = 100      # सामान ₹100 के अंदर होना चाहिए
-MIN_DISCOUNT = 90    # और डिस्काउंट कम्‍पल्‍सरी 90% या उससे ऊपर होना चाहिए!
+MAX_PRICE = 100      
+MIN_DISCOUNT = 90    
 
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "") 
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
+# बेहतरीन और असली ब्राउज़र जैसा हेडर ताकि कोई वेबसाइट ब्लॉक न करे
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
 }
 
+# सभी काम करने वाली वेबसाइट्स के लिंक्स
 SITES = {
     "IndiaFreeStuff": "https://www.indiafreestuff.in/",
     "FreeKaaMaal": "https://freekaamaal.com/",
     "DealsMagnet": "https://www.dealsmagnet.com/",
-    "Smartprix": "https://www.smartprix.com/deals",
     "DesiDimeNew": "https://www.desidime.com/new",
 }
 
@@ -53,11 +56,11 @@ def parse_and_check_deal(text):
     matched_discount = 0
     matched_price = 999999
 
-    # 0. अगर बिल्कुल फ्री या ₹0 वाला है (100% कैशबैक / Free)
+    # 0. फ्री या ₹0 / 100% कैशबैक चेक
     if "₹0" in clean_text or "rs.0" in clean_text.lower() or "100% cashback" in clean_text.lower():
         return True, "🎁 RS.0 / FREE 100% CASHBACK LOOT!"
 
-    # 1. असली डिस्काउंट ढूँढना (जैसे 90%, 95%, 99% off)
+    # 1. डिस्काउंट ढूँढना (90%, 95% आदि)
     disc_patterns = [
         r'(\d{2,3})\s*%\s*off',
         r'\(?\s*(\d{2,3})\s*%\s*\)?',
@@ -70,7 +73,7 @@ def parse_and_check_deal(text):
             if val > matched_discount:
                 matched_discount = val
 
-    # 2. कीमत ढूँढना (जैसे ₹10, ₹50, ₹99)
+    # 2. कीमत ढूँढना
     price_patterns = [
         r'(?:₹|rs\.?)\s*(\d+(?:,\d+)*)',
     ]
@@ -84,12 +87,10 @@ def parse_and_check_deal(text):
     if all_prices:
         matched_price = all_prices[0]
 
-    # --- नया और सख्त नियम (Strict Rule) ---
-    # नियम 1: डिस्काउंट कम से कम 90% या उससे ऊपर होना ही चाहिए!
+    # --- सख्त नियम (Strict Rules) ---
     if matched_discount >= MIN_DISCOUNT:
-        return True, f"🔥 {matched_discount}% OFF STRICT LOOT!"
+        return True, f"🔥 {matched_discount}% OFF MEGA LOOT!"
 
-    # नियम 2: अगर कीमत ₹100 के अंदर है, तो साथ में उस पर 90% या उससे ऊपर का डिस्काउंट होना जरूरी है (ताकि कम डिस्काउंट वाले सस्ते कवर्स या फालतू सामान छट जाएं)
     if (0 <= matched_price <= MAX_PRICE) and (matched_discount >= MIN_DISCOUNT):
         return True, f"💥 Rs.{matched_price} & {matched_discount}% OFF LOOT!"
 
@@ -99,14 +100,18 @@ def scrape_site(name, url):
     try:
         resp = requests.get(url, headers=HEADERS, timeout=15)
         if resp.status_code != 200:
+            print(f"[{name}] Skipped due to status code: {resp.status_code}")
             return
 
         soup = BeautifulSoup(resp.text, "html.parser")
         
-        for card in soup.find_all(['div', 'article', 'li', 'tr', 'box']):
+        # अब यह हर तरह के कार्ड, बॉक्स और ग्रिड आइटम्स को टारगेट करेगा ताकि कोई साइट छूटे नहीं
+        cards = soup.find_all(['div', 'article', 'li', 'tr', 'box', 'section'])
+        
+        for card in cards:
             card_text = card.get_text(" ", strip=True)
             
-            if len(card_text) < 20 or len(card_text) > 600:
+            if len(card_text) < 25 or len(card_text) > 700:
                 continue
 
             link_tag = card.find('a', href=True)
@@ -131,10 +136,11 @@ def scrape_site(name, url):
         print(f"[{name}] Error: {e}")
 
 def tracker_loop():
-    print("🚀 Strict 90%+ Filter Loot Bot Started...")
+    print("🚀 Multi-Site Loot Bot Started Successfully...")
     while True:
         for site_name, site_url in SITES.items():
             scrape_site(site_name, site_url)
+            time.sleep(3) # हर साइट के बीच में हल्का गैप ताकि ब्लॉक न हो
         time.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":
