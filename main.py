@@ -17,9 +17,9 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# --- DIRECT CONFIGURATION (यहाँ अपना बॉट टोकन और अपनी चैनल/चैट आईडी सीधा डाल दे) ---
-TELEGRAM_BOT_TOKEN = "YAHAN_APNA_BOT_TOKEN_DAL_DE"  # अपना बोट टोकन यहाँ डालें
-TELEGRAM_CHAT_ID = "YAHAN_APNA_CHANNEL_OR_CHAT_ID"       # अपनी चैनल आईडी या चैट आईडी यहाँ डालें
+# --- RENDER ENVIRONMENT VARIABLES CONFIGURATION ---
+TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
 # सुपर-फास्ट स्पीड के लिए इंटरवल
 CHECK_INTERVAL = 2   
@@ -32,7 +32,7 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36"
 ]
 
-# तुम्हारी दी गई सभी 8 वेबसाइट्स की लिस्ट
+# आपकी सभी 8 वेबसाइट्स की लिस्ट
 TARGET_URLS = [
     "https://www.desidime.com/new",
     "https://www.indiafreestuff.in/",
@@ -47,8 +47,8 @@ TARGET_URLS = [
 seen_deals = set()
 
 def send_telegram(msg):
-    if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN == "YAHAN_APNA_BOT_TOKEN_DAL_DE":
-        print("[Error]: Telegram Bot Token not configured!")
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("[Error]: Telegram Bot Token or Chat ID not found in Environment Variables!")
         return
     
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -58,7 +58,9 @@ def send_telegram(msg):
         "disable_web_page_preview": False
     }
     try:
-        requests.post(url, data=payload, timeout=5)
+        response = requests.post(url, data=payload, timeout=5)
+        if response.status_code != 200:
+            print(f"[Telegram API Error]: {response.text}")
     except Exception as e:
         print(f"[Telegram Error]: {e}")
 
