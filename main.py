@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Visual-Matched Loot Bot is Running 24/7!"
+    return "Robust Loot Bot is Running 24/7!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -19,7 +19,7 @@ def run_flask():
 # --- CONFIGURATION ---
 CHECK_INTERVAL = 60  
 MAX_PRICE = 100      # केवल ₹100 या उससे कम का सामान
-MIN_DISCOUNT = 90    # केवल 90% या उससे ऊपर का डिस्काउंट (90%+)
+MIN_DISCOUNT = 90    # केवल 90% या उससे ऊपर का डिस्काउंट
 
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "") 
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
@@ -28,13 +28,13 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 }
 
+# वर्किंग और सही URLs
 SITES = {
-    "DesiDime": "https://www.desidime.com/new",
     "IndiaFreeStuff": "https://www.indiafreestuff.in/",
     "FreeKaaMaal": "https://freekaamaal.com/",
     "DealsMagnet": "https://www.dealsmagnet.com/",
-    "PriceHistory": "https://pricehistory.app/deals",
     "Smartprix": "https://www.smartprix.com/deals",
+    "DesiDimeHot": "https://www.desidime.com/hot-deals",
 }
 
 seen_deals = set()
@@ -49,13 +49,12 @@ def send_telegram(msg):
         print(f"[Telegram Error]: {e}")
 
 def parse_and_check_deal(text):
-    # टेक्स्ट को साफ करें
     clean_text = re.sub(r'\s+', ' ', text)
     
     matched_discount = 0
     matched_price = 999999
 
-    # 1. स्क्रीनशॉट के हिसाब से डिस्काउंट ढूँढना (जैसे "91%", "90% off", "(91%)")
+    # 1. डिस्काउंट चेक (जैसे 90%, 91% off)
     disc_patterns = [
         r'(\d{2,3})\s*%\s*off',
         r'\(?\s*(\d{2,3})\s*%\s*\)?',
@@ -68,12 +67,10 @@ def parse_and_check_deal(text):
             if val > matched_discount:
                 matched_discount = val
 
-    # 2. स्क्रीनशॉट के हिसाब से ऑफर प्राइस ढूँढना (जैसे "₹189", "Rs. 9", "₹ 49")
+    # 2. प्राइस चेक (जैसे ₹158, ₹9, ₹189)
     price_patterns = [
         r'(?:₹|rs\.?)\s*(\d+(?:,\d+)*)',
     ]
-    
-    # पहली कीमत आमतौर पर Current/Offer Price होती है (जैसा स्क्रीनशॉट में ₹158, ₹189, ₹9 दिया है)
     all_prices = []
     for pat in price_patterns:
         found = re.findall(pat, clean_text, re.IGNORECASE)
@@ -82,15 +79,12 @@ def parse_and_check_deal(text):
             all_prices.append(clean_p)
 
     if all_prices:
-        # सबसे पहली मिलने वाली कीमत ही ऑफर प्राइस होती है
         matched_price = all_prices[0]
 
-    # --- फाइनल स्ट्रिक्ट फिल्टर लॉजिक ---
-    # शर्त A: डिस्काउंट 90% या उससे ज्यादा हो
+    # --- सख्त फिल्टर लॉजिक ---
     if matched_discount >= MIN_DISCOUNT:
         return True, f"🔥 {matched_discount}% OFF MEGA LOOT!"
 
-    # शर्त B: कीमत ₹100 या उससे कम हो (और 0 न हो)
     if 0 < matched_price <= MAX_PRICE:
         return True, f"💥 Rs.{matched_price} CHEAP LOOT!"
 
@@ -100,19 +94,17 @@ def scrape_site(name, url):
     try:
         resp = requests.get(url, headers=HEADERS, timeout=15)
         if resp.status_code != 200:
+            print(f"[{name}] Skipped due to status code: {resp.status_code}")
             return
 
         soup = BeautifulSoup(resp.text, "html.parser")
         
-        # हर एक प्रोडक्ट/डील कार्ड को टारगेट करें
-        for card in soup.find_all(['div', 'article', 'li', 'tr']):
+        for card in soup.find_all(['div', 'article', 'li', 'tr', 'box']):
             card_text = card.get_text(" ", strip=True)
             
-            # फालतू छोटे-मोटे टेक्स्ट ब्लॉक छोड़ दें
-            if len(card_text) < 30 or len(card_text) > 500:
+            if len(card_text) < 25 or len(card_text) > 600:
                 continue
 
-            # डील का लिंक ढूँढें
             link_tag = card.find('a', href=True)
             if not link_tag:
                 continue
@@ -124,7 +116,6 @@ def scrape_site(name, url):
             if link in seen_deals:
                 continue
 
-            # चेक करें कि क्या यह आपकी शर्तों पर खरा उतरता है
             is_loot, tag_msg = parse_and_check_deal(card_text)
             if is_loot:
                 seen_deals.add(link)
@@ -136,7 +127,7 @@ def scrape_site(name, url):
         print(f"[{name}] Error: {e}")
 
 def tracker_loop():
-    print("🚀 Visual-Matched Loot Bot Started...")
+    print("🚀 Robust Loot Bot Started with Updated Links...")
     while True:
         for site_name, site_url in SITES.items():
             scrape_site(site_name, site_url)
