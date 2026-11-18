@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Multi-Device Rotating Loot Bot is Running 24/7!"
+    return "Ultra-Smart Loot Bot is Running 24/7!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -25,35 +25,19 @@ MIN_DISCOUNT = 90
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "") 
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
-# 15 अलग-अलग ब्राउज़र और मोबाइल डिवाइसेस के User-Agents की लिस्ट (ताकि हर बार नया डिवाइस बनकर रिक्वेस्ट जाए)
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
     "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (Linux; Android 10; SM-A205U) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.6312.118 Mobile Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36",
-    "Mozilla/5.0 (iPad; CPU OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/124.0.6367.83 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/124.0.2478.51",
-    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:123.0) Gecko/20100101 Firefox/123.0",
-    "Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/24.0 Chrome/115.0.5790.166 Mobile Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.94 Safari/537.36",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
-    "Mozilla/5.0 (Linux; Android 11; Redmi Note 9 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36"
 ]
 
-# 8 टॉप डील वेबसाइट्स
 SITES = {
     "DesiDimeNew": "https://www.desidime.com/new",
     "IndiaFreeStuff": "https://www.indiafreestuff.in/",
     "DealsMagnet": "https://www.dealsmagnet.com/",
-    "FreeKaaMaal": "https://freekaamaal.com/",
-    "Smartprix": "https://www.smartprix.com/deals",
-    "PriceHistory": "https://pricehistory.app/",
-    "MySmartPrice": "https://www.mysmartprice.com/deals/",
-    "DealNTech": "https://dealntech.com/"
+    "FreeKaaMaal": "https://freekaamaal.com/"
 }
 
 seen_deals = set()
@@ -71,11 +55,14 @@ def parse_and_check_deal(text):
     clean_text = re.sub(r'\s+', ' ', text)
     
     matched_discount = 0
-    matched_price = 999999
+    all_prices = []
 
-    if "₹0" in clean_text or "rs.0" in clean_text.lower() or "100% cashback" in clean_text.lower():
-        return True, "🎁 RS.0 / FREE 100% CASHBACK LOOT!"
+    # 0. फ्री या ₹0 / 100% कैशबैक / BOGO चेक
+    if any(k in clean_text.lower() for k in ["₹0", "rs.0", "100% cashback", "bogo", "free"]):
+        if "₹0" in clean_text or "rs. 0" in clean_text.lower() or "100%" in clean_text:
+            return True, "🎁 RS.0 / FREE / 100% LOOT!"
 
+    # 1. सभी तरह के डिस्काउंट ढूँढना (जैसे 91%, (91%), 90% off)
     disc_patterns = [
         r'(\d{2,3})\s*%\s*off',
         r'\(?\s*(\d{2,3})\s*%\s*\)?',
@@ -88,30 +75,30 @@ def parse_and_check_deal(text):
             if val > matched_discount:
                 matched_discount = val
 
+    # 2. सभी कीमतों को ढूँढना (₹87, ₹125 आदि)
     price_patterns = [
         r'(?:₹|rs\.?)\s*(\d+(?:,\d+)*)',
     ]
-    all_prices = []
-    for pat in price_patterns:
-        found = re.findall(pat, clean_text, re.IGNORECASE)
-        for p in found:
-            clean_p = int(p.replace(',', ''))
-            all_prices.append(clean_p)
+    found_prices = re.findall(price_patterns[0], clean_text, re.IGNORECASE)
+    for p in found_prices:
+        clean_p = int(p.replace(',', ''))
+        all_prices.append(clean_p)
 
-    if all_prices:
-        matched_price = all_prices[0]
-
+    # --- स्मार्ट और पक्का फिल्टर लॉजिक ---
+    # केस A: अगर डिस्काउंट सीधा 90% या उससे ज्यादा है
     if matched_discount >= MIN_DISCOUNT:
         return True, f"🔥 {matched_discount}% OFF MEGA LOOT!"
 
-    if (0 <= matched_price <= MAX_PRICE) and (matched_discount >= MIN_DISCOUNT):
-        return True, f"💥 Rs.{matched_price} & {matched_discount}% OFF LOOT!"
+    # केस B: अगर कोई भी कीमत ₹100 के अंदर है और साथ में 90%+ डिस्काउंट या तगड़ा ऑफर है
+    if all_prices:
+        lowest_price = min(all_prices)
+        if (0 <= lowest_price <= MAX_PRICE) and (matched_discount >= 85): # थोड़ा मार्जिन 85% तक का रखा है ताकि मिस न हो
+            return True, f"💥 Rs.{lowest_price} & {matched_discount}% OFF LOOT!"
 
     return False, ""
 
 def scrape_site(name, url):
     try:
-        # हर बार लिस्ट में से कोई एक रैंडम यूजर-एजेंट चुनेगा ताकि वेबसाइट को नया डिवाइस लगे
         headers = {
             "User-Agent": random.choice(USER_AGENTS),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
@@ -122,11 +109,13 @@ def scrape_site(name, url):
             return
 
         soup = BeautifulSoup(resp.text, "html.parser")
-        cards = soup.find_all(['div', 'article', 'li', 'box'])[:15]
+        
+        # कार्ड्स और छोटे ब्लॉक्स दोनों को स्कैन करेगा
+        cards = soup.find_all(['div', 'article', 'li', 'box', 'tr'])[:25]
         
         for card in cards:
             card_text = card.get_text(" ", strip=True)
-            if len(card_text) < 20 or len(card_text) > 500:
+            if len(card_text) < 15 or len(card_text) > 800:
                 continue
 
             link_tag = card.find('a', href=True)
@@ -151,7 +140,7 @@ def scrape_site(name, url):
         print(f"[{name}] Error: {e}")
 
 def tracker_loop():
-    print("🚀 Rotating Device Multi-Site Loot Bot Started...")
+    print("🚀 Ultra-Smart Loot Bot Started...")
     while True:
         for site_name, site_url in SITES.items():
             scrape_site(site_name, site_url)
