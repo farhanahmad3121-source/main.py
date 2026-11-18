@@ -11,17 +11,18 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Direct Amazon Deals Bot is Running 24/7!"
+    return "8-Sites Mega Loot Deals Bot is Running 24/7!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# --- CONFIGURATION ---
-CHECK_INTERVAL = 5   
+# --- DIRECT CONFIGURATION (यहाँ अपना बॉट टोकन और चैनल आईडी सीधा डाल दे) ---
+TELEGRAM_BOT_TOKEN = "YAHAN_APNA_BOT_TOKEN_DAL_DE"  # उदाहरण: "123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+TELEGRAM_CHAT_ID = "@Gpaysquadofficial2"       # उदाहरण: "@TechHackersOfficial"
 
-TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "") 
-TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
+# सुपर-फास्ट स्पीड के लिए इंटरवल
+CHECK_INTERVAL = 2   
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -31,67 +32,111 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36"
 ]
 
-# अब हम सीधे ऐसी वेबसाइट्स या पेजों को लेंगे जो डायरेक्ट अमेज़न/फ्लिपकार्ट के लिंक्स देते हैं
-TARGET_URL = "https://www.dealsmagnet.com/"
+# तुम्हारी दी गई सभी 8 वेबसाइट्स की फाइनल लिस्ट
+TARGET_URLS = [
+    "https://www.desidime.com/new",
+    "https://www.indiafreestuff.in/",
+    "https://freekaamaal.com/",
+    "https://pricehistory.app/deals",
+    "https://slickdeals.net/",
+    "https://pricehistoryapp.com/",
+    "https://www.smartprix.com/deals",
+    "https://www.dealsmagnet.com/"
+]
 
 seen_deals = set()
 
 def send_telegram(msg):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN == "YAHAN_APNA_BOT_TOKEN_DAL_DE":
+        print("[Error]: Telegram Bot Token not configured!")
         return
+    
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": msg,
+        "disable_web_page_preview": False
+    }
     try:
-        requests.post(url, data={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "disable_web_page_preview": False}, timeout=8)
+        requests.post(url, data=payload, timeout=5)
     except Exception as e:
         print(f"[Telegram Error]: {e}")
 
-def scrape_direct_deals():
-    try:
-        headers = {
-            "User-Agent": random.choice(USER_AGENTS),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
-        }
+def scrape_all_sources():
+    headers = {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+    }
 
-        resp = requests.get(TARGET_URL, headers=headers, timeout=12)
-        if resp.status_code != 200:
-            return
+    for url in TARGET_URLS:
+        try:
+            resp = requests.get(url, headers=headers, timeout=8)
+            if resp.status_code != 200:
+                continue
 
-        soup = BeautifulSoup(resp.text, "html.parser")
-        cards = soup.find_all(['div', 'article', 'li', 'box'])
-        
-        for card in cards:
-            card_text = card.get_text(" ", strip=True)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            cards = soup.find_all(['div', 'article', 'li', 'box', 'tr'])
             
-            if len(card_text) < 25 or len(card_text) > 800:
-                continue
+            for card in cards:
+                card_text = card.get_text(" ", strip=True)
+                
+                if len(card_text) < 25 or len(card_text) > 800:
+                    continue
 
-            # चेक करें कि क्या यह अमेज़न या फ्लिपकार्ट से जुड़ी डील है
-            if "amazon" not in card_text.lower() and "flipkart" not in card_text.lower():
-                continue
+                if "Get Deal" not in card_text and "₹" not in card_text and "$" not in card_text and "deal" not in card_text.lower():
+                    continue
 
-            link_tag = card.find('a', href=True)
-            if not link_tag:
-                continue
-            
-            link = link_tag['href']
-            if not link.startswith("http"):
-                link = TARGET_URL.rstrip("/") + "/" + link.lstrip("/")
+                if any(bad in card_text.lower() for bad in ["telegram channel", "whatsapp group", "chrome extension", "android app", "ios app"]):
+                    continue
 
-            deal_signature = card_text[:50]
+                # --- 90% या ₹100 से कम का सख्त लूट फिल्टर ---
+                is_loot = False
+                
+                match_pct = re.findall(r'(\d{2,3})\s*%', card_text)
+                for p in match_pct:
+                    if int(p) >= 90:
+                        is_loot = True
+                        break
+                
+                if not is_loot:
+                    prices = re.findall(r'[₹\$]\s*([\d,]+)', card_text)
+                    if prices:
+                        try:
+                            current_price = int(prices[-1].replace(',', ''))
+                            if 0 <= current_price <= 100:
+                                is_loot = True
+                        except:
+                            pass
 
-            if deal_signature not in seen_deals:
-                seen_deals.add(deal_signature)
-                alert_msg = f"🔥 DIRECT STORE DEAL\n\n📦 {card_text[:180]}...\n🔗 {link}"
-                print(alert_msg)
-                send_telegram(alert_msg)
+                if not is_loot:
+                    continue
 
-    except Exception as e:
-        print(f"[Scraper Error]: {e}")
+                link_tag = card.find('a', href=True)
+                if not link_tag:
+                    continue
+                
+                link = link_tag['href']
+                if not link or link == "#" or link == "/":
+                    link = url
+                elif not link.startswith("http"):
+                    base_domain = "/".join(url.split("/")[:3])
+                    link = base_domain + ("/" if not link.startswith("/") else "") + link
+
+                deal_signature = card_text[:50]
+
+                if deal_signature not in seen_deals:
+                    seen_deals.add(deal_signature)
+                    alert_msg = f"🚨 🔥 8-SITES MEGA LOOT (90%+ OFF / Under ₹100)\n\n📦 {card_text[:180]}...\n🔗 {link}"
+                    print(alert_msg)
+                    send_telegram(alert_msg)
+
+        except Exception as e:
+            print(f"[Scraper Error for {url}]: {e}")
 
 def tracker_loop():
-    print("🚀 Direct Store Link Bot Started...")
+    print("🚀 8-Sites Mega Loot Bot Started...")
     while True:
-        scrape_direct_deals()
+        scrape_all_sources()
         time.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":
