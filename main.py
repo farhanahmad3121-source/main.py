@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Robust Loot Bot is Running 24/7!"
+    return "Zero-Price & 90%+ Loot Bot is Running 24/7!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -18,8 +18,8 @@ def run_flask():
 
 # --- CONFIGURATION ---
 CHECK_INTERVAL = 60  
-MAX_PRICE = 100      # केवल ₹100 या उससे कम का सामान
-MIN_DISCOUNT = 90    # केवल 90% या उससे ऊपर का डिस्काउंट
+MAX_PRICE = 100      # ₹0 से ₹100 तक का सामान
+MIN_DISCOUNT = 90    # 90% या उससे ऊपर का डिस्काउंट
 
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "") 
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
@@ -28,13 +28,12 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 }
 
-# वर्किंग और सही URLs
 SITES = {
     "IndiaFreeStuff": "https://www.indiafreestuff.in/",
     "FreeKaaMaal": "https://freekaamaal.com/",
     "DealsMagnet": "https://www.dealsmagnet.com/",
     "Smartprix": "https://www.smartprix.com/deals",
-    "DesiDimeHot": "https://www.desidime.com/hot-deals",
+    "DesiDimeNew": "https://www.desidime.com/new",
 }
 
 seen_deals = set()
@@ -54,20 +53,26 @@ def parse_and_check_deal(text):
     matched_discount = 0
     matched_price = 999999
 
-    # 1. डिस्काउंट चेक (जैसे 90%, 91% off)
+    # 0. विशेष रूप से ₹0 (फ्री / 100% कैशबैक) चेक करें
+    if "₹0" in clean_text or "rs.0" in clean_text.lower() or "100% cashback" in clean_text.lower() or "free" in clean_text.lower():
+        # चेक करें कि क्या सच में जीरो या फ्री है
+        if "₹0" in clean_text or "rs. 0" in clean_text.lower() or "100% cashback" in clean_text.lower():
+            return True, "🎁 RS.0 / FREE 100% CASHBACK LOOT!"
+
+    # 1. डिस्काउंट चेक (जैसे 90%, 95%, 100%, या ब्रैकेट वाला (100%))
     disc_patterns = [
         r'(\d{2,3})\s*%\s*off',
         r'\(?\s*(\d{2,3})\s*%\s*\)?',
         r'flat\s*(\d{2,3})\s*%'
     ]
     for pat in disc_patterns:
-        match = re.search(pat, clean_text, re.IGNORECASE)
-        if match:
-            val = int(match.group(1))
+        matches = re.findall(pat, clean_text, re.IGNORECASE)
+        for m in matches:
+            val = int(m)
             if val > matched_discount:
                 matched_discount = val
 
-    # 2. प्राइस चेक (जैसे ₹158, ₹9, ₹189)
+    # 2. कीमत चेक (जैसे ₹0, ₹9, ₹50)
     price_patterns = [
         r'(?:₹|rs\.?)\s*(\d+(?:,\d+)*)',
     ]
@@ -81,11 +86,12 @@ def parse_and_check_deal(text):
     if all_prices:
         matched_price = all_prices[0]
 
-    # --- सख्त फिल्टर लॉजिक ---
+    # --- फाइनल स्ट्रिक्ट फिल्टर ---
     if matched_discount >= MIN_DISCOUNT:
         return True, f"🔥 {matched_discount}% OFF MEGA LOOT!"
 
-    if 0 < matched_price <= MAX_PRICE:
+    # अब इसमें 0 को भी शामिल कर लिया है (0 से 100 के बीच)
+    if 0 <= matched_price <= MAX_PRICE:
         return True, f"💥 Rs.{matched_price} CHEAP LOOT!"
 
     return False, ""
@@ -94,7 +100,6 @@ def scrape_site(name, url):
     try:
         resp = requests.get(url, headers=HEADERS, timeout=15)
         if resp.status_code != 200:
-            print(f"[{name}] Skipped due to status code: {resp.status_code}")
             return
 
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -102,7 +107,7 @@ def scrape_site(name, url):
         for card in soup.find_all(['div', 'article', 'li', 'tr', 'box']):
             card_text = card.get_text(" ", strip=True)
             
-            if len(card_text) < 25 or len(card_text) > 600:
+            if len(card_text) < 20 or len(card_text) > 600:
                 continue
 
             link_tag = card.find('a', href=True)
@@ -127,7 +132,7 @@ def scrape_site(name, url):
         print(f"[{name}] Error: {e}")
 
 def tracker_loop():
-    print("🚀 Robust Loot Bot Started with Updated Links...")
+    print("🚀 Zero-Price Enabled Loot Bot Started...")
     while True:
         for site_name, site_url in SITES.items():
             scrape_site(site_name, site_url)
