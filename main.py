@@ -36,6 +36,29 @@ USER_AGENTS = [
 ]
 
 RAW_KEYWORDS = [
+    "monitor stand", "laptop riser", "mouse pad", "desk mat", "cable sleeve",
+    "pen stand", "document holder", "book stand", "clipboard", "stamp pad",
+    "correction tape", "binder clips", "paper clips", "push pins", "laminator pouches",
+
+    # Extra Cleaning, Laundry & Home Care
+    "microfiber mop", "spin mop refill", "broom", "dustpan", "toilet cleaner",
+    "drain cleaner", "descaler", "fabric softener", "stain remover", "clothes peg",
+    "drying rack", "ironing board cover", "mattress topper", "sofa cover", "cushion cover",
+
+    # Bike, Car & Travel Extras
+    "bike phone mount", "helmet visor", "helmet lock", "tank bag", "bungee cord",
+    "car charger", "car organizer", "sun visor organizer", "neck rest", "lumbar pillow",
+    "luggage cover", "packing cubes", "sling bag", "waist pouch", "rain cover",
+
+    # Pooja, Festive & Home Vibes
+    "pooja thali", "diya", "incense holder", "agarbatti stand", "camphor burner",
+    "toran", "fairy lights", "string lights", "tea light holders", "aroma diffuser",
+
+    # Smart/Tech & Everyday Small Utilities
+    "hdmi cable", "vga cable", "ethernet cable", "card reader", "stylus pen",
+    "screen guard", "camera lens protector", "sim ejector", "coin pouch", "card holder",
+    "key ring", "magnetic hook", "anti slip mat", "silicone mat", "coaster set"
+    
     "steel glass", "steel plate", "steel bowl", "measuring spoon", "tea strainer",
     "kitchen towel", "dishwashing sponge", "scrubber pad", "bowl cover", "food cover",
     "fridge organizer", "fridge mat", "egg tray", "bottle brush", "sink brush",
