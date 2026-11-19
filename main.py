@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Amazon 55-Keyword Loot Bot (10s Gap, No Retry, Strict Filter) Running!"
+    return "Amazon 55-Keyword Loot Bot (4s Gap, 3-Day Auto-Expire, Keyword-Wise Error Names) Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -20,10 +20,12 @@ def run_flask():
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
-MIN_DISCOUNT = 90          # 90% या उससे ज़्यादा ऑफ
-MAX_PRICE = 100            # ₹100 या उससे कम
-LOOP_DELAY = 600           # राउंड पूरा होने के बाद 10 मिनट (600 सेकंड) का इंतज़ार
-KEYWORD_DELAY = 10         # हर कीवर्ड सर्च के बाद 10 सेकंड का गैप
+MIN_DISCOUNT = 90              # 90% या उससे ज़्यादा ऑफ
+MAX_PRICE = 100                # ₹100 या उससे कम
+LOOP_DELAY = 600               # राउंड पूरा होने के बाद 10 मिनट (600 सेकंड) का इंतज़ार
+KEYWORD_DELAY = 4              # हर कीवर्ड सर्च के बाद 4 सेकंड का गैप
+SEEN_EXPIRY_DAYS = 3           # 3 दिन बाद पुराने seen रिकॉर्ड अपने आप साफ/डिलीट हो जाएँगे
+SEEN_EXPIRY_SECONDS = SEEN_EXPIRY_DAYS * 86400
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -46,7 +48,16 @@ KEYWORDS = [
     "heels for women", "sandals for women", "slippers women", "handbags for women", "sling bags women"
 ]
 
-seen_deals = set()
+# {sig: timestamp} — 3 दिन से पुराने रिकॉर्ड अपने आप हटते रहेंगे
+seen_deals = {}
+
+def cleanup_old_seen_deals():
+    now = time.time()
+    expired_keys = [k for k, ts in seen_deals.items() if (now - ts) >= SEEN_EXPIRY_SECONDS]
+    for k in expired_keys:
+        del seen_deals[k]
+    if expired_keys:
+        print(f"[Cleanup] {len(expired_keys)} पुराने seen आइटम ({SEEN_EXPIRY_DAYS} दिन पुराने) हटा दिए गए।")
 
 def send_telegram(msg: str):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -124,13 +135,14 @@ def has_free_delivery(text: str) -> bool:
     return ("free delivery" in t) or ("free shipping" in t)
 
 def scan_once():
+    cleanup_old_seen_deals()
+
     count_200 = 0
-    count_403 = 0
-    count_503 = 0
-    count_other_err = 0
-    count_captcha_block = 0
-    empty_keywords = []
+    err_403_keywords = []
+    err_503_keywords = []
+    other_err_keywords = []
     blocked_keywords = []
+    empty_keywords = []
     deals_sent = 0
 
     for kw in KEYWORDS:
@@ -147,23 +159,22 @@ def scan_once():
             code = resp.status_code
 
             if code == 403:
-                count_403 += 1
+                err_403_keywords.append(kw)
                 print(f"[Status 403] {kw}")
                 time.sleep(KEYWORD_DELAY)
                 continue
             elif code == 503:
-                count_503 += 1
+                err_503_keywords.append(kw)
                 print(f"[Status 503] {kw}")
                 time.sleep(KEYWORD_DELAY)
                 continue
             elif code != 200:
-                count_other_err += 1
+                other_err_keywords.append(f"{kw} (HTTP {code})")
                 print(f"[Status {code}] {kw}")
                 time.sleep(KEYWORD_DELAY)
                 continue
 
             if is_captcha_or_block_page(resp.text):
-                count_captcha_block += 1
                 blocked_keywords.append(kw)
                 print(f"[Captcha/Blocked on 200] {kw}")
                 time.sleep(KEYWORD_DELAY)
@@ -211,7 +222,7 @@ def scan_once():
                 sig = f"{link.lower()}|{title.lower()[:70]}"
                 if sig in seen_deals:
                     continue
-                seen_deals.add(sig)
+                seen_deals[sig] = time.time()
 
                 msg = (
                     f"👕👟 TRIPLE LOOT (90%+ OFF | <=₹100 | FREE DELIVERY)\n\n"
@@ -225,10 +236,15 @@ def scan_once():
                 time.sleep(0.4)
 
         except Exception as e:
-            count_other_err += 1
+            other_err_keywords.append(f"{kw} ({type(e).__name__})")
             print(f"[Error {kw}]: {e}")
 
         time.sleep(KEYWORD_DELAY)
+
+    count_403 = len(err_403_keywords)
+    count_503 = len(err_503_keywords)
+    count_other_err = len(other_err_keywords)
+    count_captcha_block = len(blocked_keywords)
 
     total_issues = count_403 + count_503 + count_other_err + count_captcha_block
     if total_issues == 0:
@@ -239,29 +255,41 @@ def scan_once():
             f"(Captcha/Block: {count_captcha_block}, 403: {count_403}, 503: {count_503}, अन्य एरर: {count_other_err})"
         )
 
-    extra_lines = []
+    detail_lines = []
+    if err_503_keywords:
+        detail_lines.append(f"• 503 एरर वाले कीवर्ड्स ({count_503}): {', '.join(err_503_keywords)}")
+    if err_403_keywords:
+        detail_lines.append(f"• 403 एरर वाले कीवर्ड्स ({count_403}): {', '.join(err_403_keywords)}")
+    if other_err_keywords:
+        detail_lines.append(f"• अन्य एरर वाले कीवर्ड्स ({count_other_err}): {', '.join(other_err_keywords)}")
     if blocked_keywords:
-        extra_lines.append(f"• ब्लॉक/कैप्चा वाले कीवर्ड्स ({len(blocked_keywords)}): {', '.join(blocked_keywords[:8])}")
+        detail_lines.append(f"• ब्लॉक/कैप्चा वाले कीवर्ड्स ({count_captcha_block}): {', '.join(blocked_keywords)}")
     if empty_keywords:
-        extra_lines.append(f"• 0 आइटम वाले कीवर्ड्स ({len(empty_keywords)}): {', '.join(empty_keywords[:10])}")
+        detail_lines.append(f"• 0 आइटम वाले कीवर्ड्स ({len(empty_keywords)}): {', '.join(empty_keywords)}")
 
-    extra_text = ("\n" + "\n".join(extra_lines)) if extra_lines else ""
+    details_text = ("\n" + "\n".join(detail_lines)) if detail_lines else ""
 
-    send_telegram(
+    report_msg = (
         f"🕒 10-Min Bot Status Report\n"
         f"{health_line}\n"
         f"• Clean 200 OK Pages: {count_200}/{len(KEYWORDS)} | Captcha/Block: {count_captcha_block}\n"
-        f"• 403: {count_403} | 503: {count_503} | अन्य एरर: {count_other_err}{extra_text}\n"
+        f"• 403: {count_403} | 503: {count_503} | अन्य एरर: {count_other_err}{details_text}\n"
         f"• नई लूट भेजी गई: {deals_sent}"
     )
 
+    # Telegram मैसेज 4096 कैरेक्टर की लिमिट से ज़्यादा न हो, इसलिए ज़रूरत पड़ने पर सुरक्षित तरीके से भेजें
+    if len(report_msg) <= 4000:
+        send_telegram(report_msg)
+    else:
+        send_telegram(report_msg[:3950] + "\n... (रिपोर्ट लंबी होने पर आगे का हिस्सा कटा)")
+
 def background_worker():
-    print("🚀 Render 55-Keyword Loot Bot Started (10s Gap, No Retry)...")
+    print("🚀 Render 55-Keyword Loot Bot Started (4s Gap, 3-Day Auto-Expire, Error Names)...")
     send_telegram(
         f"🚀 सर्चिंग चालू हो गई है!\n"
         f"• कुल कीवर्ड्स: {len(KEYWORDS)}\n"
         f"• फ़िल्टर: 90%+ ऑफ + ₹100 या उससे कम (असली प्राइस, प्रति-यूनिट नहीं) + फ्री डिलीवरी\n"
-        f"• हर कीवर्ड के बाद {KEYWORD_DELAY} सेकंड का गैप (बिना retry के) और राउंड के बाद 10 मिनट की रिपोर्ट।"
+        f"• हर कीवर्ड के बाद {KEYWORD_DELAY} सेकंड का गैप (बिना retry के), {SEEN_EXPIRY_DAYS} दिन बाद पुराना डेटा अपने आप साफ, और रिपोर्ट में हर एरर वाले कीवर्ड का नाम भी आएगा।"
     )
     while True:
         scan_once()
