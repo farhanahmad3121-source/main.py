@@ -1,5 +1,4 @@
-RAW_KEYWORDS = [
-    "noise cancelling headphones", "anc wireless headphones", "studio headphones", "dj headphones", "gaming laptop accessories",
+"noise cancelling headphones", "anc wireless headphones", "studio headphones", "dj headphones", "gaming laptop accessories",
     "mechanical gaming keyboard", "wireless gaming mouse", "oled smart watch", "gps smartwatch", "smart fitness watch",
     "action cam", "mirrorless camera lens", "dslr camera accessories", "wireless microphone system", "studio condenser mic",
     "home theater speaker", "dolby soundbar", "subwoofer speaker", "party bluetooth speaker", "portable projector",
