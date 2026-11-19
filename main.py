@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Amazon 50-Keyword Loot Bot (10m Loop + Heartbeat) Running!"
+    return "Amazon 50-Keyword Loot Bot (10m Status Report) Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -31,7 +31,6 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/604.1",
 ]
 
-# 50 काम के कीवर्ड्स (बेल्ट, जूते, टी-शर्ट/टीसल, कपड़े और एक्सेसरीज़)
 KEYWORDS = [
     "mens tshirts", "tshirt", "polo tshirt", "oversized tshirt", "mens shirts",
     "formal shirt", "casual shirt", "joggers for men", "track pants for men", "mens jeans",
@@ -88,8 +87,10 @@ def has_free_delivery(text: str) -> bool:
     return ("free delivery" in t) or ("free shipping" in t)
 
 def scan_once():
-    status_200 = 0
-    status_err = 0
+    count_200 = 0
+    count_403 = 0
+    count_503 = 0
+    count_other_err = 0
     deals_sent = 0
 
     for kw in KEYWORDS:
@@ -105,13 +106,24 @@ def scan_once():
             resp = requests.get(base_url, headers=headers, timeout=12)
             code = resp.status_code
 
-            if code != 200:
-                status_err += 1
+            if code == 200:
+                count_200 += 1
+            elif code == 403:
+                count_403 += 1
+                print(f"[Status 403] {kw}")
+                time.sleep(random.uniform(2.0, 4.0))
+                continue
+            elif code == 503:
+                count_503 += 1
+                print(f"[Status 503] {kw}")
+                time.sleep(random.uniform(2.0, 4.0))
+                continue
+            else:
+                count_other_err += 1
                 print(f"[Status {code}] {kw}")
                 time.sleep(random.uniform(2.0, 4.0))
                 continue
 
-            status_200 += 1
             soup = BeautifulSoup(resp.text, "html.parser")
             items = soup.select("div[data-component-type='s-search-result']")
 
@@ -161,21 +173,26 @@ def scan_once():
                 time.sleep(0.4)
 
         except Exception as e:
-            status_err += 1
+            count_other_err += 1
             print(f"[Error {kw}]: {e}")
 
         time.sleep(random.uniform(2.0, 4.0))
 
-    # हर 10 मिनट वाले रन के आखिर में Telegram पर स्टेटस हार्टबीट भेजेगा
+    total_errors = count_403 + count_503 + count_other_err
+    if total_errors == 0:
+        health_line = "✅ सब एकदम सही चल रहा है, कोई 403 / 503 या दूसरा एरर नहीं आया है!"
+    else:
+        health_line = f"⚠️ ध्यान दें: कुछ एरर आए (403: {count_403}, 503: {count_503}, अन्य: {count_other_err})"
+
     send_telegram(
-        f"✅ Bot Alive (10m Cycle Done)\n"
-        f"• Keywords Checked: {len(KEYWORDS)}\n"
-        f"• 200 OK Pages: {status_200} | Non-200/Errors: {status_err}\n"
-        f"• New Loot Alerts Sent: {deals_sent}"
+        f"🕒 10-Min Bot Status Report\n"
+        f"{health_line}\n"
+        f"• 200 OK: {count_200}/{len(KEYWORDS)} | 403: {count_403} | 503: {count_503} | अन्य एरर: {count_other_err}\n"
+        f"• नई लूट भेजी गई: {deals_sent}"
     )
 
 def background_worker():
-    print("🚀 Render 50-Keyword Loot Bot Started (10m Loop + Heartbeat)...")
+    print("🚀 Render 50-Keyword Loot Bot Started (10m Status Report)...")
     while True:
         scan_once()
         time.sleep(LOOP_DELAY)
