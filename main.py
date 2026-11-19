@@ -12,7 +12,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Strict 90% Loot Bot is Running 24/7!"
+    return "Strict 90% Loot Bot (No-Repeat, 1s Loop) is Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -22,7 +22,7 @@ def run_flask():
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
-CHECK_INTERVAL = 2
+CHECK_INTERVAL = 1  # हर 1 सेकंड में चेक
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -44,6 +44,12 @@ TARGET_URLS = [
 ]
 
 seen_deals = set()
+
+def clean_text_for_id(text):
+    # बदलते हुए टाइम (जैसे "38 min", "2 mins ago") और एक्स्ट्रा स्पेस हटाओ ताकि वही डील दोबारा न आए
+    t = re.sub(r'\b\d+\s*(min|mins|minute|minutes|sec|secs|hour|hours|hr|hrs)\s*(ago)?\b', '', text, flags=re.IGNORECASE)
+    t = re.sub(r'\s+', ' ', t).strip().lower()
+    return t
 
 def send_telegram(msg):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -74,9 +80,8 @@ def scrape_all_sources():
                 "Accept-Language": "en-US,en;q=0.9"
             }
 
-            resp = requests.get(url, headers=headers, timeout=10)
+            resp = requests.get(url, headers=headers, timeout=8)
             if resp.status_code != 200:
-                print(f"[Status {resp.status_code}]: {url}")
                 continue
 
             soup = BeautifulSoup(resp.text, "html.parser")
@@ -125,14 +130,16 @@ def scrape_all_sources():
                 if not link_tag:
                     continue
 
-                link = link_tag['href']
+                link = link_tag['href'].strip()
                 if not link or link == "#" or link == "/":
                     link = url
                 elif not link.startswith("http"):
                     base_domain = "/".join(url.split("/")[:3])
                     link = base_domain + ("/" if not link.startswith("/") else "") + link
 
-                deal_signature = card_text[:60]
+                clean_link = link.split("?")[0].rstrip("/").lower()
+                cleaned_title = clean_text_for_id(card_text)[:90]
+                deal_signature = f"{clean_link}|{cleaned_title}"
 
                 if deal_signature not in seen_deals:
                     seen_deals.add(deal_signature)
@@ -144,7 +151,7 @@ def scrape_all_sources():
             print(f"[Scraper Error for {url}]: {e}")
 
 def tracker_loop():
-    print("🚀 Strict 90% Loot Bot Started...")
+    print("🚀 Strict 90% Loot Bot Started (1s loop, zero-repeat)...")
     while True:
         scrape_all_sources()
         time.sleep(CHECK_INTERVAL)
