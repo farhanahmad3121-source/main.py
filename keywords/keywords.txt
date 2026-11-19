@@ -5,6 +5,250 @@
     "smart tv stick", "4k streaming stick", "mesh wifi router", "wifi 6 router", "gaming router",
     "nvme ssd", "external ssd", "portable hard drive", "thunderbolt dock", "usb4 hub",
     "high wattage gan charger", "140w usb c charger", "wireless charging pad", "magsafe stand", "car dash camera",
+    "adjustable dumbbells", "kettlebell cast iron", "olympic barbell", "gym bench", "rowing machine compact",
+    "camping tent", "sleeping bag", "hydration pack", "trekking backpack 60l", "roof box car",
+    "car tire inflator digital", "portable jump starter", "car seat cover leather", "car subwoofer", "car amplifier",
+
+    # Expensive Grooming, Health & Personal Care
+    "ipl hair removal device", "laser hair remover", "sonic electric toothbrush", "water flosser", "massage gun",
+    "percussion massager", "facial cleansing device", "led therapy device", "smart weighing scale", "body composition scale",
+    "luxury perfume eau de parfum", "oud perfume", "designer fragrance", "electric shaver premium", "pro hair clipper"
+    
+    "packing tape", "brown tape", "bubble wrap", "courier bags", "cardboard box",
+    "shipping labels", "fragile sticker", "twine rope", "jute rope", "nylon rope",
+    "elastic band", "rubber bands", "cable ties", "plastic wrap", "cling film",
+
+    # Computer, Networking & Tech Small Parts
+    "rj45 connector", "lan cable", "wifi adapter", "usb wifi dongle", "bluetooth dongle",
+    "sata cable", "ssd enclosure", "hard drive case", "cmos battery", "thermal paste",
+    "dust blower", "air blower", "screen cleaning kit", "anti static brush", "display port cable",
+
+    # Dining, Serving & Small Kitchen Extras
+    "coaster", "table mat", "placemat", "napkin holder", "toothpick holder",
+    "salt shaker", "pepper mill", "honey dispenser", "butter dish", "egg slicer",
+    "potato masher", "dough maker", "puri press", "idli stand", "dhokla maker",
+
+    # Washroom, Sink & Daily Small Helpers
+    "soap net", "bath loofah", "back scrubber", "shower cap", "hair catcher",
+    "drain cover", "pipe clamp", "hose pipe", "tap aerator", "water tap",
+    "door closer", "magnet catch", "hinge", "drawer slide", "furniture pads"
+    
+    "spanners set", "ring spanner", "adjustable wrench", "pipe wrench", "monkey wrench",
+    "socket set", "ratchet wrench", "torque wrench", "hex key set", "nut driver",
+    "c clamp", "f clamp", "bench vise", "hand vise", "rivet gun",
+
+    # Cutting, Sawing & Shaping Tools
+    "hand saw", "hacksaw", "wood chisel", "chisel set", "utility knife",
+    "box cutter", "wire stripper", "cable cutter", "tin snips", "bolt cutter",
+    "glass cutter", "tile cutter", "hand plane", "wood rasp", "metal file",
+
+    # Measuring, Marking & Inspection Tools
+    "spirit level", "laser level", "vernier caliper", "micrometer", "steel ruler",
+    "chalk line", "marking gauge", "center punch", "scribber", "inspection mirror",
+
+    # Electrical & Soldering Tools
+    "wire crimper", "crimping tool", "voltage tester", "line tester", "continuity tester",
+    "desoldering pump", "solder wire", "heat gun", "cable tie gun", "fish tape",
+
+    # Plumbing, Auto & Home Repair Tools
+    "plunger", "drain snake", "ptfe tape", "strap wrench", "oil filter wrench",
+    "spark plug wrench", "tire lever", "air blow gun", "grease gun", "caulking gun",
+    "putty knife", "scraper tool", "pry bar", "crowbar", "mallet"
+    
+    "hair trimmer", "hair cutting trimmer", "hair clipper", "cordless trimmer", "rechargeable trimmer",
+    "body hair trimmer", "groin trimmer", "eyebrow trimmer", "detail trimmer", "shaver trimmer",
+    "electric shaver", "foil shaver", "rotary shaver", "callus remover", "electric callous remover",
+    "blackhead remover", "facial steamer", "ultrasonic skin scrubber", "led face mask", "scalp massager",
+
+    # Earbuds, Headphones, Speakers & Audio Gadgets
+    "tws earbuds", "gaming earbuds", "anc earbuds", "open ear earbuds", "bone conduction headphones",
+    "over ear headphones", "on ear headphones", "wired earphones", "type c earphones", "lightning earphones",
+    "soundbar", "portable speaker", "party speaker", "karaoke mic", "wireless mic",
+    "collar mic", "clip mic", "lavalier mic", "voice recorder", "fm transmitter",
+
+# Chargers, Cables, Power & Battery Gadgets
+    "65w charger", "120w charger", "gan charger", "car fast charger", "dual port charger",
+    "multi port charger", "magsafe charger", "magsafe power bank", "20000mah power bank", "10000mah power bank",
+    "magnetic power bank", "solar power bank", "braided usb cable", "magnetic charging cable", "3 in 1 charging cable",
+    "fast charging cable", "usb hub", "powered usb hub", "type c hub", "hdmi switcher",
+
+    # Smart Watch, Band, Tracker & Wearable Gadgets
+    "calling smartwatch", "amoled smartwatch", "kids smartwatch", "smart ring", "smart band",
+    "bluetooth tracker", "key finder tag", "smart glasses", "vr headset", "3d vr box",
+
+    # Mobile, Camera & Content Creator Gadgets
+    "gimbal stabilizer", "phone gimbal", "selfie stick", "selfie stick tripod", "mini tripod",
+    "flexible tripod", "octopus tripod", "clip on lens", "macro lens phone", "wide angle lens",
+    "video light", "pocket led light", "rgb light", "webcam", "hd webcam",
+    "action camera", "mini camera", "dashcam", "doorbell camera", "security camera",
+
+    # Computer, Laptop, Desk & Mini Gadgets
+    "wireless mouse", "gaming mouse", "vertical mouse", "silent mouse", "mechanical keyboard",
+    "wireless keyboard", "mini keyboard", "numeric keypad", "laptop cooling pad", "laptop stand",
+    "usb fan", "mini desk fan", "clip fan", "neck fan", "portable fan",
+    "mini humidifier", "air purifier mini", "digital clock", "alarm clock", "smart plug",
+
+    # Home, Kitchen, Auto & Utility Gadgets
+    "electric screwdriver", "rechargeable drill", "digital multimeter", "laser measure", "thermal gun",
+    "milk frother", "electric frother", "portable blender", "juicer bottle", "electric kettle mini",
+    "electronic luggage scale", "digital tds meter", "moisture meter", "soil meter", "car air purifier",
+    "car jump starter", "blind spot mirror", "usb led light", "motion sensor light", "cabinet light"
+    
+    "monitor stand", "laptop riser", "mouse pad", "desk mat", "cable sleeve",
+    "pen stand", "document holder", "book stand", "clipboard", "stamp pad",
+    "correction tape", "binder clips", "paper clips", "push pins", "laminator pouches",
+
+    # Extra Cleaning, Laundry & Home Care
+    "microfiber mop", "spin mop refill", "broom", "dustpan", "toilet cleaner",
+    "drain cleaner", "descaler", "fabric softener", "stain remover", "clothes peg",
+    "drying rack", "ironing board cover", "mattress topper", "sofa cover", "cushion cover",
+
+    # Bike, Car & Travel Extras
+    "bike phone mount", "helmet visor", "helmet lock", "tank bag", "bungee cord",
+    "car charger", "car organizer", "sun visor organizer", "neck rest", "lumbar pillow",
+    "luggage cover", "packing cubes", "sling bag", "waist pouch", "rain cover",
+
+    # Pooja, Festive & Home Vibes
+    "pooja thali", "diya", "incense holder", "agarbatti stand", "camphor burner",
+    "toran", "fairy lights", "string lights", "tea light holders", "aroma diffuser",
+
+    # Smart/Tech & Everyday Small Utilities
+    "hdmi cable", "vga cable", "ethernet cable", "card reader", "stylus pen",
+    "screen guard", "camera lens protector", "sim ejector", "coin pouch", "card holder",
+    "key ring", "magnetic hook", "anti slip mat", "silicone mat", "coaster set"
+    
+    "steel glass", "steel plate", "steel bowl", "measuring spoon", "tea strainer",
+    "kitchen towel", "dishwashing sponge", "scrubber pad", "bowl cover", "food cover",
+    "fridge organizer", "fridge mat", "egg tray", "bottle brush", "sink brush",
+
+    # Bijli, Phone & Rozmarra Ke Kaam
+    "mobile holder", "charging cable", "earphone pouch", "cable clip", "switchboard sticker",
+    "bulb holder", "two pin plug", "three pin plug", "fuse wire", "insulation tape",
+    "led night bulb", "book light", "pocket torch", "velcro cable tie", "sim card tray pin",
+
+# Safai, Kapde & Personal Kaam
+    "cloth clips", "laundry net bag", "shoe bag cover", "comb", "hair brush",
+    "face tissue", "wet wipes", "hand wash refill", "soap case", "toothbrush stand",
+    "cotton buds", "band aid", "safety pins", "sewing kit", "measuring tape pocket"
+    
+    "mobile phone", "smartphone", "keypad mobile", "headphones", "wireless headphones",
+    "gaming headset", "bluetooth speaker", "mini speaker", "smartwatch", "fitness band",
+    "charging dock", "wireless charger", "otg adapter", "type c cable", "aux cable",
+
+    # Home & Kitchen Useful Items (नए वाले)
+    "tiffin box", "steel tiffin", "insulated lunch box", "water dispenser", "tea kettle",
+    "milk boiler", "dosa tawa", "chapati maker", "rotary chopper", "garlic chopper",
+    "spice rack", "cutlery stand", "dish drying rack", "sink strainer", "sink mat",
+    "bin bag", "dustbin", "pedal dustbin", "tissue holder", "paper roll holder",
+
+    # Home Comfort, Lighting & Daily Utility
+    "table lamp", "night lamp", "reading light", "emergency light", "rechargeable torch",
+    "extension cord", "spike guard", "power strip", "wall hook", "adhesive hooks",
+    "coat hanger", "pants hanger", "laundry basket", "foldable basket", "storage box",
+    "plastic container set", "glass jar set", "airtight container", "ice tray", "water jug",
+
+    # Grooming, Health & Personal Useful
+    "trimmer", "beard trimmer", "nose trimmer", "epilator", "nail clipper",
+    "foot scrubber", "pumice stone", "face roller", "gua sha", "lip balm",
+    "sunscreen stick", "deodorant", "perfume", "body mist", "sanitizer"
+    
+    "tawa", "kadai", "frying pan", "saucepan", "grater",
+    "peeler", "strainer", "rolling pin", "chopping board", "measuring cup",
+    "spice box", "oil dispenser", "garlic press", "lemon squeezer", "egg beater",
+    "whisk", "tongs", "spatula", "ladle", "colander",
+
+    # Gardening & Outdoor Care
+    "plant pot", "grow bag", "watering can", "garden hose", "pruning shears",
+    "garden gloves", "fertilizer", "seeds pack", "coco peat", "sprinkler",
+    "bird feeder", "outdoor light", "solar light", "pathway light", "insect trap",
+
+    # Fitness, Sports & Active Gear
+    "yoga mat", "resistance band", "skipping rope", "gym gloves", "hand gripper",
+    "shaker bottle", "foam roller", "knee sleeve", "ankle support", "wrist wrap",
+    "badminton shuttlecock", "table tennis balls", "football", "cricket ball", "swimming goggles",
+
+    # Home Safety, Security & Utility
+    "door lock", "padlock", "door stopper", "window lock", "safety latch",
+    "smoke detector", "first aid kit", "digital thermometer", "bp monitor", "weighing scale",
+    "digital scale", "magnifying glass", "battery charger", "aa batteries", "aaa batteries",
+
+    # Storage, Organizers & Everyday Misc
+    "wardrobe organizer", "drawer organizer", "under bed storage", "cloth cover", "saree cover",
+    "jewellery box", "watch box", "sunglasses case", "glasses case", "cable organizer",
+    "cord protector", "double sided tape", "duct tape", "zip ties", "velcro straps",
+
+    # Auto, Bike & Utility Accessories
+    "bike gloves", "seat cushion", "car sunshade", "car duster", "tire inflator",
+    "jumper cable", "car tissue box", "keychain", "lanyard", "id card holder",
+
+    # Pet Care & Misc Lifestyle
+    "pet bowl", "dog leash", "pet collar", "pet grooming brush", "cat litter scoop",
+    "earplugs", "eye mask", "neck pillow", "heating pad", "hot water bag",
+    "ice pack", "shoe polish", "shoe brush", "lint remover", "clothes brush"
+    
+    "notebook", "diary", "pen set", "gel pens", "highlighter",
+    "marker pens", "stapler", "calculator", "desk organizer", "study lamp",
+    "whiteboard", "sticky notes", "file folder", "geometry box", "drawing book",
+
+    # Tools, Hardware & Car/Bike Care
+    "screwdriver set", "drill machine", "measuring tape", "allen key set", "glue gun",
+    "soldering iron", "pliers", "hammer", "wrench set", "car phone holder",
+    "car vacuum cleaner", "microfiber cloth", "bike cover", "helmet", "bike lock",
+
+# Bathroom & Cleaning
+    "toilet brush", "bathroom mat", "shower curtain", "liquid detergent", "dishwash liquid",
+    "floor cleaner", "glass cleaner", "garbage bags", "air freshener", "bath mat",
+
+    # Travel, Bags & Storage
+    "travel pouch", "toiletries bag", "duffle trolley", "passport holder", "luggage tags",
+    "vacuum storage bags", "shoe rack", "shoe bag", "key holder", "hanger set",
+
+    # Kids, Gifts & Home Decor
+    "remote control car", "building blocks", "board game", "water gun", "piggy bank",
+    "photo frame", "showpiece", "artificial plants", "candles", "table runner", 
+    "mixer grinder", "hand blender", "electric kettle", "induction cooktop", "toaster",
+    "sandwich maker", "air fryer", "microwave oven", "water purifier", "pressure cooker",
+    "gas stove", "rice cooker", "chopper", "juicer mixer grinder", "coffee maker",
+
+    # Home Appliances (Washing Machine, Cooler, etc.)
+    "washing machine", "semi automatic washing machine", "fully automatic washing machine",
+    "air cooler", "ceiling fan", "table fan", "pedestal fan", "room heater",
+    "iron press", "steam iron", "vacuum cleaner", "led bulb", "extension board",
+
+    # Home & Living / Daily Essentials
+    "bedsheet", "double bedsheet", "pillow", "pillow cover", "curtains",
+    "door mat", "bath towel", "blanket", "comforter", "mattress protector",
+    "storage containers", "lunch box", "water bottle", "flask bottle", "soap dispenser",
+    "laundry bag", "wall clock", "led strip light", "mosquito net", "mop",
+
+    # Electronics & Gadgets
+    "earbuds", "bluetooth earphones", "neckband", "power bank", "usb cable",
+    "fast charger", "mobile stand", "mouse", "keyboard", "pendrive",
+    "memory card", "ring light", "tripod", "smart bulb", "torch light",
+
+    # Grooming, Health & Misc Utility
+    "hair dryer", "hair straightener", "shaving kit", "razor blades", "body lotion",
+    "hair oil", "shampoo", "conditioner", "toothpaste", "toothbrush",
+    "umbrella", "raincoat", "backpack", "laptop bag", "tool kit", 
+    "mens tshirts", "tshirt", "polo tshirt", "oversized tshirt", "compression tshirt",
+    "henley tshirt", "round neck tshirt", "v neck tshirt", "full sleeve tshirt", "sleeveless tshirt",
+    "gym tshirt men", "cotton tshirt men", "graphic tshirt men", "plain tshirt men", "striped tshirt men",
+    "mens shirts", "formal shirt", "casual shirt", "linen shirt men", "denim shirt men",
+    "checked shirt men", "flannel shirt men", "joggers for men", "track pants for men", "mens jeans",
+    "slim fit jeans men", "cargo pants men", "chinos for men", "mens shorts", "denim shorts men",
+    "cotton shorts men", "hoodies for men", "sweatshirts for men", "mens jackets", "bomber jacket men",
+    "windcheater men", "kurta for men", "mens ethnic wear", "pathani kurta men", "nehru jacket men",
+    "boxers for men", "briefs for men", "mens vest", "thermal wear men", "night suit men",
+    "pajama for men", "dhoti kurta men", "tracksuit for men", "sweater for men", "cardigan men",
+    "shoes for men", "running shoes men", "casual shoes men", "sneakers for men", "loafers men",
+    "formal shoes men", "sports shoes men", "sandals for men", "slippers for men", "flip flops men",
+    "clogs for men", "socks for men", "ankle socks", "crew socks men", "no show socks men",
+    "belts for men", "leather belt men", "wallets for men", "leather wallet men", "caps for men",
+    "baseball cap men", "beanie cap", "sunglasses for men", "watch for men", "smartwatch men",
+    "backpack for men", "messenger bag men", "duffel bag men", "gym bag men", "tie for men",
+    "handkerchief men", "muffler for men", "gloves for men", "earphones men", "trimmer for men",
+    "face wash", "mens face wash", "womens face wash", "salicylic acid face wash", "niacinamide face wash",
+    "vitamin c face wash", "charcoal face wash", "neem face wash", "foaming face wash", "gel face wash",
 
     # Expensive Kitchen & Home Appliances
     "espresso coffee machine", "bean to cup coffee maker", "cold press juicer", "slow juicer", "stand mixer",
