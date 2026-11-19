@@ -36,6 +36,45 @@ USER_AGENTS = [
 ]
 
 RAW_KEYWORDS = [
+    "hair trimmer", "hair cutting trimmer", "hair clipper", "cordless trimmer", "rechargeable trimmer",
+    "body hair trimmer", "groin trimmer", "eyebrow trimmer", "detail trimmer", "shaver trimmer",
+    "electric shaver", "foil shaver", "rotary shaver", "callus remover", "electric callous remover",
+    "blackhead remover", "facial steamer", "ultrasonic skin scrubber", "led face mask", "scalp massager",
+
+    # Earbuds, Headphones, Speakers & Audio Gadgets
+    "tws earbuds", "gaming earbuds", "anc earbuds", "open ear earbuds", "bone conduction headphones",
+    "over ear headphones", "on ear headphones", "wired earphones", "type c earphones", "lightning earphones",
+    "soundbar", "portable speaker", "party speaker", "karaoke mic", "wireless mic",
+    "collar mic", "clip mic", "lavalier mic", "voice recorder", "fm transmitter",
+
+    # Chargers, Cables, Power & Battery Gadgets
+    "65w charger", "120w charger", "gan charger", "car fast charger", "dual port charger",
+    "multi port charger", "magsafe charger", "magsafe power bank", "20000mah power bank", "10000mah power bank",
+    "magnetic power bank", "solar power bank", "braided usb cable", "magnetic charging cable", "3 in 1 charging cable",
+    "fast charging cable", "usb hub", "powered usb hub", "type c hub", "hdmi switcher",
+
+    # Smart Watch, Band, Tracker & Wearable Gadgets
+    "calling smartwatch", "amoled smartwatch", "kids smartwatch", "smart ring", "smart band",
+    "bluetooth tracker", "key finder tag", "smart glasses", "vr headset", "3d vr box",
+
+    # Mobile, Camera & Content Creator Gadgets
+    "gimbal stabilizer", "phone gimbal", "selfie stick", "selfie stick tripod", "mini tripod",
+    "flexible tripod", "octopus tripod", "clip on lens", "macro lens phone", "wide angle lens",
+    "video light", "pocket led light", "rgb light", "webcam", "hd webcam",
+    "action camera", "mini camera", "dashcam", "doorbell camera", "security camera",
+
+    # Computer, Laptop, Desk & Mini Gadgets
+    "wireless mouse", "gaming mouse", "vertical mouse", "silent mouse", "mechanical keyboard",
+    "wireless keyboard", "mini keyboard", "numeric keypad", "laptop cooling pad", "laptop stand",
+    "usb fan", "mini desk fan", "clip fan", "neck fan", "portable fan",
+    "mini humidifier", "air purifier mini", "digital clock", "alarm clock", "smart plug",
+
+    # Home, Kitchen, Auto & Utility Gadgets
+    "electric screwdriver", "rechargeable drill", "digital multimeter", "laser measure", "thermal gun",
+    "milk frother", "electric frother", "portable blender", "juicer bottle", "electric kettle mini",
+    "electronic luggage scale", "digital tds meter", "moisture meter", "soil meter", "car air purifier",
+    "car jump starter", "blind spot mirror", "usb led light", "motion sensor light", "cabinet light"
+    
     "monitor stand", "laptop riser", "mouse pad", "desk mat", "cable sleeve",
     "pen stand", "document holder", "book stand", "clipboard", "stamp pad",
     "correction tape", "binder clips", "paper clips", "push pins", "laminator pouches",
