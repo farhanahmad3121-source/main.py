@@ -1,164 +1,180 @@
-import time
-import re
 import os
+import re
+import time
 import random
 import threading
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask
 
-# --- RENDER KEEP-ALIVE SERVER ---
 app = Flask(__name__)
 
-@app.route('/')
+@app.route("/")
 def home():
-    return "Strict 90% Loot Bot (No-Repeat, 1s Loop) is Running!"
+    return "Amazon Fashion Loot Bot (70%+ Off / Under ₹400) Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# --- RENDER ENVIRONMENT VARIABLES CONFIGURATION ---
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
-CHECK_INTERVAL = 1  # हर 1 सेकंड में चेक
+MIN_DISCOUNT = 70   # 70% या उससे ज़्यादा ऑफ
+MAX_PRICE = 400     # ₹400 से कम कीमत
+LOOP_DELAY = 60     # हर साइकिल के बीच गैप (सेकंड में)
+STATUS_REPORT_INTERVAL = 1800  # हर 30 मिनट में एक बार स्टेटस समरी (स्पैम रोकने के लिए)
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
     "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/537.36"
+    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/604.1",
 ]
 
-TARGET_URLS = [
-    "https://www.desidime.com/new",
-    "https://www.indiafreestuff.in/",
-    "https://freekaamaal.com/",
-    "https://pricehistory.app/deals",
-    "https://slickdeals.net/",
-    "https://pricehistoryapp.com/",
-    "https://www.smartprix.com/deals",
-    "https://www.dealsmagnet.com/"
+AMAZON_URLS = [
+    "https://www.amazon.in/s?k=mens+tshirts",
+    "https://www.amazon.in/s?k=womens+clothing",
+    "https://www.amazon.in/s?k=shoes+for+men",
+    "https://www.amazon.in/s?k=shoes+for+women",
 ]
 
 seen_deals = set()
+last_status_by_url = {}
+last_summary_time = 0
 
-def clean_text_for_id(text):
-    # बदलते हुए टाइम (जैसे "38 min", "2 mins ago") और एक्स्ट्रा स्पेस हटाओ ताकि वही डील दोबारा न आए
-    t = re.sub(r'\b\d+\s*(min|mins|minute|minutes|sec|secs|hour|hours|hr|hrs)\s*(ago)?\b', '', text, flags=re.IGNORECASE)
-    t = re.sub(r'\s+', ' ', t).strip().lower()
-    return t
-
-def send_telegram(msg):
+def send_telegram(msg: str):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("[Error]: Telegram Bot Token or Chat ID not found!")
+        print("[Error] BOT_TOKEN या CHAT_ID सेट नहीं है।")
         return
-
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": msg,
-        "disable_web_page_preview": False
-    }
     try:
-        response = requests.post(url, data=payload, timeout=8)
-        if response.status_code != 200:
-            print(f"[Telegram API Error]: {response.text}")
-        else:
-            print("[Telegram]: Alert sent successfully!")
+        r = requests.post(
+            url,
+            data={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "disable_web_page_preview": False},
+            timeout=10,
+        )
+        if r.status_code != 200:
+            print(f"[Telegram Error]: {r.text}")
     except Exception as e:
-        print(f"[Telegram Error]: {e}")
+        print(f"[Telegram Exception]: {e}")
 
-def scrape_all_sources():
-    for url in TARGET_URLS:
+def extract_price_and_discount(text: str):
+    prices = []
+    for p in re.findall(r"₹\s*([\d,]+)", text):
         try:
-            headers = {
-                "User-Agent": random.choice(USER_AGENTS),
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9"
-            }
+            prices.append(int(p.replace(",", "")))
+        except ValueError:
+            pass
 
-            resp = requests.get(url, headers=headers, timeout=8)
-            if resp.status_code != 200:
+    discounts = []
+    for d in re.findall(r"(\d{1,3})\s*%\s*off", text, flags=re.IGNORECASE):
+        try:
+            discounts.append(int(d))
+        except ValueError:
+            pass
+
+    min_price = min(prices) if prices else None
+    max_discount = max(discounts) if discounts else 0
+    return min_price, max_discount
+
+def scan_once():
+    global last_summary_time
+    cycle_statuses = []
+
+    for base_url in AMAZON_URLS:
+        headers = {
+            "User-Agent": random.choice(USER_AGENTS),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-IN,en;q=0.9",
+            "Referer": "https://www.amazon.in/",
+        }
+        try:
+            resp = requests.get(base_url, headers=headers, timeout=12)
+            code = resp.status_code
+            cycle_statuses.append(f"{base_url.split('=')[-1]}: {code}")
+
+            # अगर 200 नहीं है (जैसे 403, 503), तो तुरंत Telegram पर बताओ
+            if code != 200:
+                prev_code = last_status_by_url.get(base_url)
+                if prev_code != code:
+                    last_status_by_url[base_url] = code
+                    send_telegram(
+                        f"⚠️ HTTP Status Alert: {code}\n"
+                        f"🔗 {base_url}\n"
+                        f"📌 Amazon ने 200 के बजाय {code} रिस्पॉन्स दिया है।"
+                    )
+                print(f"[Status {code}]: {base_url}")
+                time.sleep(random.uniform(3.0, 6.0))
                 continue
 
+            # अगर पहले एरर आ रहा था और अब 200 हो गया है, तो अपडेट दें
+            if last_status_by_url.get(base_url) not in (None, 200):
+                send_telegram(f"✅ Recovered: Status 200 OK\n🔗 {base_url}")
+            last_status_by_url[base_url] = 200
+
             soup = BeautifulSoup(resp.text, "html.parser")
-            cards = soup.find_all(['div', 'article', 'li', 'box', 'tr'])
+            items = soup.select("div[data-component-type='s-search-result']")
 
-            for card in cards:
-                card_text = card.get_text(" ", strip=True)
-
-                if len(card_text) < 25 or len(card_text) > 1500:
+            for item in items:
+                text = item.get_text(" ", strip=True)
+                if not text:
                     continue
 
-                if not any(k in card_text.lower() for k in ["get deal", "buy now", "₹", "$", "deal"]):
+                price, discount = extract_price_and_discount(text)
+                is_70_plus_off = discount >= MIN_DISCOUNT
+                is_under_400 = (price is not None) and (0 < price < MAX_PRICE)
+
+                if not (is_70_plus_off or is_under_400):
                     continue
 
-                if any(bad in card_text.lower() for bad in ["telegram channel", "whatsapp group", "chrome extension", "android app", "ios app"]):
+                title_el = item.select_one("h2 span")
+                title = title_el.get_text(" ", strip=True) if title_el else text[:100]
+
+                link_el = item.select_one("h2 a") or item.find("a", href=True)
+                href = link_el["href"].strip() if link_el and link_el.has_attr("href") else ""
+                if href.startswith("/"):
+                    link = "https://www.amazon.in" + href.split("?")[0]
+                elif href.startswith("http"):
+                    link = href.split("?")[0]
+                else:
+                    link = base_url
+
+                sig = f"{link.lower()}|{title.lower()[:70]}"
+                if sig in seen_deals:
                     continue
+                seen_deals.add(sig)
 
-                is_loot = False
-
-                # 1. 90% से 100% तक डिस्काउंट चेक
-                match_pct = re.findall(r'(\d{2,3})\s*%', card_text)
-                for p_str in match_pct:
-                    try:
-                        p_val = int(p_str)
-                        if 90 <= p_val <= 100:
-                            is_loot = True
-                            break
-                    except ValueError:
-                        pass
-
-                # 2. ₹100 के अंदर की कीमत चेक
-                if not is_loot:
-                    inr_prices = re.findall(r'₹\s*([\d,]+)', card_text)
-                    if inr_prices:
-                        try:
-                            cur_price = int(inr_prices[0].replace(',', ''))
-                            if 0 <= cur_price <= 100:
-                                is_loot = True
-                        except ValueError:
-                            pass
-
-                if not is_loot:
-                    continue
-
-                link_tag = card.find('a', href=True)
-                if not link_tag:
-                    continue
-
-                link = link_tag['href'].strip()
-                if not link or link == "#" or link == "/":
-                    link = url
-                elif not link.startswith("http"):
-                    base_domain = "/".join(url.split("/")[:3])
-                    link = base_domain + ("/" if not link.startswith("/") else "") + link
-
-                clean_link = link.split("?")[0].rstrip("/").lower()
-                cleaned_title = clean_text_for_id(card_text)[:90]
-                deal_signature = f"{clean_link}|{cleaned_title}"
-
-                if deal_signature not in seen_deals:
-                    seen_deals.add(deal_signature)
-                    alert_msg = f"🚨 🔥 STRICT 90%+ OR UNDER ₹100 LOOT\n\n📦 {card_text[:220]}...\n🔗 {link}"
-                    print(alert_msg)
-                    send_telegram(alert_msg)
+                price_str = f"₹{price}" if price is not None else "N/A"
+                msg = (
+                    f"👕👟 AMAZON FASHION LOOT (70%+ OFF / <₹400)\n\n"
+                    f"📦 {title[:160]}\n"
+                    f"💰 Price: {price_str} | 🏷️ Discount: {discount}%\n"
+                    f"🔗 {link}"
+                )
+                send_telegram(msg)
+                time.sleep(0.5)
 
         except Exception as e:
-            print(f"[Scraper Error for {url}]: {e}")
+            err_msg = f"❌ Request Error: {str(e)[:140]}\n🔗 {base_url}"
+            print(err_msg)
+            send_telegram(err_msg)
 
-def tracker_loop():
-    print("🚀 Strict 90% Loot Bot Started (1s loop, zero-repeat)...")
+        time.sleep(random.uniform(3.0, 6.0))
+
+    now = time.time()
+    if cycle_statuses and (now - last_summary_time >= STATUS_REPORT_INTERVAL):
+        last_summary_time = now
+        send_telegram("📊 Status Summary (200 / 403 / 503 Check):\n" + "\n".join(cycle_statuses))
+
+def background_worker():
+    print("🚀 Render Amazon Fashion Loot Worker Started (70%+ Off / <₹400)...")
     while True:
-        scrape_all_sources()
-        time.sleep(CHECK_INTERVAL)
+        scan_once()
+        time.sleep(LOOP_DELAY)
 
 if __name__ == "__main__":
-    t = threading.Thread(target=run_flask)
+    t = threading.Thread(target=background_worker)
     t.daemon = True
     t.start()
-
-    tracker_loop()
+    run_flask()
