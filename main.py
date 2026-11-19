@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Amazon 55-Keyword Loot Bot (Full Diagnostics + Strict 90%+ / <=₹100 / Free Delivery) Running!"
+    return "Amazon 55-Keyword Loot Bot (10s Gap, No Retry, Strict Filter) Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -22,7 +22,8 @@ TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
 MIN_DISCOUNT = 90          # 90% या उससे ज़्यादा ऑफ
 MAX_PRICE = 100            # ₹100 या उससे कम
-LOOP_DELAY = 600           # हर 10 मिनट (600 सेकंड) में दोबारा सर्च
+LOOP_DELAY = 600           # राउंड पूरा होने के बाद 10 मिनट (600 सेकंड) का इंतज़ार
+KEYWORD_DELAY = 10         # हर कीवर्ड सर्च के बाद 10 सेकंड का गैप
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -76,12 +77,10 @@ def is_captcha_or_block_page(html_text: str) -> bool:
     return any(p in t for p in block_phrases)
 
 def extract_real_price_and_discount(card_element, full_text: str):
-    # 1. कार्ड के अंदर मुख्य ऑफस्क्रीन प्राइस (.a-price .a-offscreen) ढूँढने की कोशिश
     main_prices = []
     for el in card_element.select(".a-price .a-offscreen"):
         raw = el.get_text(" ", strip=True)
         parent_ctx = el.parent.parent.get_text(" ", strip=True).lower() if el.parent and el.parent.parent else ""
-        # प्रति-पीस / प्रति-काउंट कीमत छोड़ें
         if any(unit in parent_ctx for unit in ["/ count", "/count", "/ pair", "/pair", "/ pack", "/pack", "/ piece", "/piece", "per pair", "per count"]):
             continue
         m = re.findall(r"₹\s*([\d,]+)", raw)
@@ -93,7 +92,6 @@ def extract_real_price_and_discount(card_element, full_text: str):
             except ValueError:
                 pass
 
-    # अगर .a-price .a-offscreen नहीं मिला तो पूरे टेक्स्ट से प्रति-यूनिट को छोड़कर कीमत निकालें
     if not main_prices:
         cleaned_for_price = re.sub(
             r"₹\s*[\d,]+\s*/\s*(count|pair|pack|piece|pc|item)",
@@ -109,10 +107,8 @@ def extract_real_price_and_discount(card_element, full_text: str):
             except ValueError:
                 pass
 
-    # आमतौर पर कार्ड में पहला/मेन प्राइस सेल प्राइस होता है, MRP बाद में होता है
     real_price = main_prices[0] if main_prices else None
 
-    # 2. डिस्काउंट % निकालना
     discounts = []
     for d in re.findall(r"(\d{1,3})\s*%\s*off", full_text, flags=re.IGNORECASE):
         try:
@@ -153,25 +149,24 @@ def scan_once():
             if code == 403:
                 count_403 += 1
                 print(f"[Status 403] {kw}")
-                time.sleep(random.uniform(2.5, 4.5))
+                time.sleep(KEYWORD_DELAY)
                 continue
             elif code == 503:
                 count_503 += 1
                 print(f"[Status 503] {kw}")
-                time.sleep(random.uniform(2.5, 4.5))
+                time.sleep(KEYWORD_DELAY)
                 continue
             elif code != 200:
                 count_other_err += 1
                 print(f"[Status {code}] {kw}")
-                time.sleep(random.uniform(2.5, 4.5))
+                time.sleep(KEYWORD_DELAY)
                 continue
 
-            # 200 आया है, अब चेक करें कि कहीं कैप्चा/ब्लॉक पेज तो नहीं आया
             if is_captcha_or_block_page(resp.text):
                 count_captcha_block += 1
                 blocked_keywords.append(kw)
                 print(f"[Captcha/Blocked on 200] {kw}")
-                time.sleep(random.uniform(3.0, 5.0))
+                time.sleep(KEYWORD_DELAY)
                 continue
 
             count_200 += 1
@@ -181,7 +176,7 @@ def scan_once():
             if len(items) == 0:
                 empty_keywords.append(kw)
                 print(f"[0 Items on 200] {kw}")
-                time.sleep(random.uniform(2.0, 4.0))
+                time.sleep(KEYWORD_DELAY)
                 continue
 
             for item in items:
@@ -233,7 +228,7 @@ def scan_once():
             count_other_err += 1
             print(f"[Error {kw}]: {e}")
 
-        time.sleep(random.uniform(2.0, 4.0))
+        time.sleep(KEYWORD_DELAY)
 
     total_issues = count_403 + count_503 + count_other_err + count_captcha_block
     if total_issues == 0:
@@ -261,12 +256,12 @@ def scan_once():
     )
 
 def background_worker():
-    print("🚀 Render 55-Keyword Loot Bot Started (Full Diagnostics)...")
+    print("🚀 Render 55-Keyword Loot Bot Started (10s Gap, No Retry)...")
     send_telegram(
         f"🚀 सर्चिंग चालू हो गई है!\n"
         f"• कुल कीवर्ड्स: {len(KEYWORDS)}\n"
         f"• फ़िल्टर: 90%+ ऑफ + ₹100 या उससे कम (असली प्राइस, प्रति-यूनिट नहीं) + फ्री डिलीवरी\n"
-        f"• हर 10 मिनट में 200 / Captcha / 403 / 503 / 0-Item की पूरी रिपोर्ट आएगी।"
+        f"• हर कीवर्ड के बाद {KEYWORD_DELAY} सेकंड का गैप (बिना retry के) और राउंड के बाद 10 मिनट की रिपोर्ट।"
     )
     while True:
         scan_once()
