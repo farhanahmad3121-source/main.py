@@ -36,6 +36,25 @@ USER_AGENTS = [
 ]
 
 RAW_KEYWORDS = [
+    "packing tape", "brown tape", "bubble wrap", "courier bags", "cardboard box",
+    "shipping labels", "fragile sticker", "twine rope", "jute rope", "nylon rope",
+    "elastic band", "rubber bands", "cable ties", "plastic wrap", "cling film",
+
+    # Computer, Networking & Tech Small Parts
+    "rj45 connector", "lan cable", "wifi adapter", "usb wifi dongle", "bluetooth dongle",
+    "sata cable", "ssd enclosure", "hard drive case", "cmos battery", "thermal paste",
+    "dust blower", "air blower", "screen cleaning kit", "anti static brush", "display port cable",
+
+    # Dining, Serving & Small Kitchen Extras
+    "coaster", "table mat", "placemat", "napkin holder", "toothpick holder",
+    "salt shaker", "pepper mill", "honey dispenser", "butter dish", "egg slicer",
+    "potato masher", "dough maker", "puri press", "idli stand", "dhokla maker",
+
+    # Washroom, Sink & Daily Small Helpers
+    "soap net", "bath loofah", "back scrubber", "shower cap", "hair catcher",
+    "drain cover", "pipe clamp", "hose pipe", "tap aerator", "water tap",
+    "door closer", "magnet catch", "hinge", "drawer slide", "furniture pads"
+    
     "spanners set", "ring spanner", "adjustable wrench", "pipe wrench", "monkey wrench",
     "socket set", "ratchet wrench", "torque wrench", "hex key set", "nut driver",
     "c clamp", "f clamp", "bench vise", "hand vise", "rivet gun",
