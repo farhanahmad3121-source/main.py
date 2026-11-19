@@ -36,6 +36,27 @@ USER_AGENTS = [
 ]
 
 RAW_KEYWORDS = [
+    "mobile phone", "smartphone", "keypad mobile", "headphones", "wireless headphones",
+    "gaming headset", "bluetooth speaker", "mini speaker", "smartwatch", "fitness band",
+    "charging dock", "wireless charger", "otg adapter", "type c cable", "aux cable",
+
+    # Home & Kitchen Useful Items (नए वाले)
+    "tiffin box", "steel tiffin", "insulated lunch box", "water dispenser", "tea kettle",
+    "milk boiler", "dosa tawa", "chapati maker", "rotary chopper", "garlic chopper",
+    "spice rack", "cutlery stand", "dish drying rack", "sink strainer", "sink mat",
+    "bin bag", "dustbin", "pedal dustbin", "tissue holder", "paper roll holder",
+
+    # Home Comfort, Lighting & Daily Utility
+    "table lamp", "night lamp", "reading light", "emergency light", "rechargeable torch",
+    "extension cord", "spike guard", "power strip", "wall hook", "adhesive hooks",
+    "coat hanger", "pants hanger", "laundry basket", "foldable basket", "storage box",
+    "plastic container set", "glass jar set", "airtight container", "ice tray", "water jug",
+
+    # Grooming, Health & Personal Useful
+    "trimmer", "beard trimmer", "nose trimmer", "epilator", "nail clipper",
+    "foot scrubber", "pumice stone", "face roller", "gua sha", "lip balm",
+    "sunscreen stick", "deodorant", "perfume", "body mist", "sanitizer"
+    
     "tawa", "kadai", "frying pan", "saucepan", "grater",
     "peeler", "strainer", "rolling pin", "chopping board", "measuring cup",
     "spice box", "oil dispenser", "garlic press", "lemon squeezer", "egg beater",
