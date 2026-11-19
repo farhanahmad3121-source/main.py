@@ -35,8 +35,52 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/604.1",
 ]
 
-KEYWORDS = [
-    # T-Shirts & Tops (Men)
+MORE_DIFFERENT_KEYWORDS = [
+    # Stationery & Study/Office
+    "notebook", "diary", "pen set", "gel pens", "highlighter",
+    "marker pens", "stapler", "calculator", "desk organizer", "study lamp",
+    "whiteboard", "sticky notes", "file folder", "geometry box", "drawing book",
+
+    # Tools, Hardware & Car/Bike Care
+    "screwdriver set", "drill machine", "measuring tape", "allen key set", "glue gun",
+    "soldering iron", "pliers", "hammer", "wrench set", "car phone holder",
+    "car vacuum cleaner", "microfiber cloth", "bike cover", "helmet", "bike lock",
+
+    # Bathroom & Cleaning
+    "toilet brush", "bathroom mat", "shower curtain", "liquid detergent", "dishwash liquid",
+    "floor cleaner", "glass cleaner", "garbage bags", "air freshener", "bath mat",
+
+    # Travel, Bags & Storage
+    "travel pouch", "toiletries bag", "duffle trolley", "passport holder", "luggage tags",
+    "vacuum storage bags", "shoe rack", "shoe bag", "key holder", "hanger set",
+
+    # Kids, Gifts & Home Decor
+    "remote control car", "building blocks", "board game", "water gun", "piggy bank",
+    "photo frame", "showpiece", "artificial plants", "candles", "table runner", 
+    "mixer grinder", "hand blender", "electric kettle", "induction cooktop", "toaster",
+    "sandwich maker", "air fryer", "microwave oven", "water purifier", "pressure cooker",
+    "gas stove", "rice cooker", "chopper", "juicer mixer grinder", "coffee maker",
+
+    # Home Appliances (Washing Machine, Cooler, etc.)
+    "washing machine", "semi automatic washing machine", "fully automatic washing machine",
+    "air cooler", "ceiling fan", "table fan", "pedestal fan", "room heater",
+    "iron press", "steam iron", "vacuum cleaner", "led bulb", "extension board",
+
+    # Home & Living / Daily Essentials
+    "bedsheet", "double bedsheet", "pillow", "pillow cover", "curtains",
+    "door mat", "bath towel", "blanket", "comforter", "mattress protector",
+    "storage containers", "lunch box", "water bottle", "flask bottle", "soap dispenser",
+    "laundry bag", "wall clock", "led strip light", "mosquito net", "mop",
+
+    # Electronics & Gadgets
+    "earbuds", "bluetooth earphones", "neckband", "power bank", "usb cable",
+    "fast charger", "mobile stand", "mouse", "keyboard", "pendrive",
+    "memory card", "ring light", "tripod", "smart bulb", "torch light",
+
+    # Grooming, Health & Misc Utility
+    "hair dryer", "hair straightener", "shaving kit", "razor blades", "body lotion",
+    "hair oil", "shampoo", "conditioner", "toothpaste", "toothbrush",
+    "umbrella", "raincoat", "backpack", "laptop bag", "tool kit", 
     "mens tshirts", "tshirt", "polo tshirt", "oversized tshirt", "compression tshirt",
     "henley tshirt", "round neck tshirt", "v neck tshirt", "full sleeve tshirt", "sleeveless tshirt",
     "gym tshirt men", "cotton tshirt men", "graphic tshirt men", "plain tshirt men", "striped tshirt men",
