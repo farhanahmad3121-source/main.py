@@ -35,7 +35,7 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/604.1",
 ]
 
-KEYWORDS = list(dict.fromkeys(MORE_DIFFERENT_KEYWORDS))
+RAW_KEYWORDS = [
     "notebook", "diary", "pen set", "gel pens", "highlighter",
     "marker pens", "stapler", "calculator", "desk organizer", "study lamp",
     "whiteboard", "sticky notes", "file folder", "geometry box", "drawing book",
