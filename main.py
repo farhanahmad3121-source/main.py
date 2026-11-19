@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Amazon Fashion Loot Bot (Strictly 90%+ Off) Running!"
+    return "Amazon Fashion Loot Bot (90%+ Off + <=₹100 + Free Delivery) Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -20,7 +20,8 @@ def run_flask():
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
-MIN_DISCOUNT = 90   # सिर्फ 90% या उससे ज़्यादा ऑफ
+MIN_DISCOUNT = 90   # 90% या उससे ज़्यादा ऑफ
+MAX_PRICE = 100     # ₹100 या उससे कम कीमत
 LOOP_DELAY = 60
 STATUS_REPORT_INTERVAL = 1800
 
@@ -77,6 +78,10 @@ def extract_price_and_discount(text: str):
     max_discount = max(discounts) if discounts else 0
     return min_price, max_discount
 
+def has_free_delivery(text: str) -> bool:
+    t = text.lower()
+    return ("free delivery" in t) or ("free shipping" in t)
+
 def scan_once():
     global last_summary_time
     cycle_statuses = []
@@ -119,9 +124,17 @@ def scan_once():
                     continue
 
                 price, discount = extract_price_and_discount(text)
+                free_del = has_free_delivery(text)
 
-                # सिर्फ 90% या उससे ज़्यादा ऑफ होने पर ही भेजेगा
-                if discount < MIN_DISCOUNT:
+                # तीनों शर्तें एक साथ: 90%+ ऑफ AND <=₹100 AND Free Delivery
+                is_valid = (
+                    (discount >= MIN_DISCOUNT)
+                    and (price is not None)
+                    and (0 < price <= MAX_PRICE)
+                    and free_del
+                )
+
+                if not is_valid:
                     continue
 
                 title_el = item.select_one("h2 span")
@@ -141,11 +154,10 @@ def scan_once():
                     continue
                 seen_deals.add(sig)
 
-                price_str = f"₹{price}" if price is not None else "N/A"
                 msg = (
-                    f"👕👟 AMAZON FASHION LOOT (90%+ OFF)\n\n"
+                    f"👕👟 TRIPLE LOOT (90%+ OFF | <=₹100 | FREE DELIVERY)\n\n"
                     f"📦 {title[:160]}\n"
-                    f"💰 Price: {price_str} | 🏷️ Discount: {discount}%\n"
+                    f"💰 Price: ₹{price} | 🏷️ Discount: {discount}% | 🚚 Free Delivery: Yes\n"
                     f"🔗 {link}"
                 )
                 send_telegram(msg)
@@ -164,7 +176,7 @@ def scan_once():
         send_telegram("📊 Status Summary (200 / 403 / 503 Check):\n" + "\n".join(cycle_statuses))
 
 def background_worker():
-    print("🚀 Render Amazon Fashion Loot Worker Started (Strictly 90%+ Off)...")
+    print("🚀 Render Amazon Fashion Loot Worker Started (90%+ Off + <=₹100 + Free Delivery)...")
     while True:
         scan_once()
         time.sleep(LOOP_DELAY)
