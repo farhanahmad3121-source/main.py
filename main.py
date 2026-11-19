@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Amazon 55-Keyword Loot Bot (4s Gap, 3-Day Auto-Expire, Keyword-Wise Error Names) Running!"
+    return "Amazon 55-Keyword Loot Bot (Instant Error Alert + Strict Card/Link Check) Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -48,7 +48,6 @@ KEYWORDS = [
     "heels for women", "sandals for women", "slippers women", "handbags for women", "sling bags women"
 ]
 
-# {sig: timestamp} — 3 दिन से पुराने रिकॉर्ड अपने आप हटते रहेंगे
 seen_deals = {}
 
 def cleanup_old_seen_deals():
@@ -67,13 +66,23 @@ def send_telegram(msg: str):
     try:
         r = requests.post(
             url,
-            data={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "disable_web_page_preview": False},
+            data={"chat_id": TELEGRAM_CHAT_ID, "text": msg[:4000], "disable_web_page_preview": False},
             timeout=10,
         )
         if r.status_code != 200:
             print(f"[Telegram Error]: {r.text}")
     except Exception as e:
         print(f"[Telegram Exception]: {e}")
+
+def send_instant_error(kw: str, err_type: str, reason: str):
+    msg = (
+        f"🚨 INSTANT ERROR ALERT\n"
+        f"🔍 कीवर्ड/कपड़ा: {kw}\n"
+        f"⚠️ एरर प्रकार: {err_type}\n"
+        f"📌 वजह: {reason}"
+    )
+    send_telegram(msg)
+    time.sleep(0.3)
 
 def is_captcha_or_block_page(html_text: str) -> bool:
     t = html_text.lower()
@@ -134,6 +143,33 @@ def has_free_delivery(text: str) -> bool:
     t = text.lower()
     return ("free delivery" in t) or ("free shipping" in t)
 
+def extract_strict_product_info(item, base_url: str):
+    # 1. असली टाइटल चेक
+    title_el = item.select_one("h2 span")
+    title = title_el.get_text(" ", strip=True) if title_el else ""
+    if not title or len(title) < 4:
+        return None, None
+
+    # 2. असली प्रोडक्ट लिंक (/dp/ या /gp/) चेक
+    product_link = None
+    for a_el in item.select("a[href]"):
+        href = a_el.get("href", "").strip()
+        if "/dp/" in href or "/gp/product/" in href:
+            if href.startswith("/"):
+                clean = "https://www.amazon.in" + href.split("?")[0]
+            elif href.startswith("http"):
+                clean = href.split("?")[0]
+            else:
+                clean = ""
+            if clean and ("/s?" not in clean):
+                product_link = clean
+                break
+
+    if not product_link:
+        return None, None
+
+    return title, product_link
+
 def scan_once():
     cleanup_old_seen_deals()
 
@@ -160,23 +196,23 @@ def scan_once():
 
             if code == 403:
                 err_403_keywords.append(kw)
-                print(f"[Status 403] {kw}")
+                send_instant_error(kw, "HTTP 403", "Amazon ने एक्सेस 403 दिया")
                 time.sleep(KEYWORD_DELAY)
                 continue
             elif code == 503:
                 err_503_keywords.append(kw)
-                print(f"[Status 503] {kw}")
+                send_instant_error(kw, "HTTP 503", "Amazon ने 503 सर्विस अनअवेलेबल दिया")
                 time.sleep(KEYWORD_DELAY)
                 continue
             elif code != 200:
                 other_err_keywords.append(f"{kw} (HTTP {code})")
-                print(f"[Status {code}] {kw}")
+                send_instant_error(kw, f"HTTP {code}", f"अपेक्षित 200 के बजाय {code} आया")
                 time.sleep(KEYWORD_DELAY)
                 continue
 
             if is_captcha_or_block_page(resp.text):
                 blocked_keywords.append(kw)
-                print(f"[Captcha/Blocked on 200] {kw}")
+                send_instant_error(kw, "Captcha/Block", "HTTP 200 आया पर अंदर कैप्चा/रोबोट ब्लॉक पेज मिला")
                 time.sleep(KEYWORD_DELAY)
                 continue
 
@@ -186,13 +222,17 @@ def scan_once():
 
             if len(items) == 0:
                 empty_keywords.append(kw)
-                print(f"[0 Items on 200] {kw}")
+                send_instant_error(kw, "0 Items", "पेज 200 खुला पर कोई प्रोडक्ट कार्ड नहीं मिला")
                 time.sleep(KEYWORD_DELAY)
                 continue
 
             for item in items:
                 text = item.get_text(" ", strip=True)
                 if not text:
+                    continue
+
+                lower_text = text.lower()
+                if "currently unavailable" in lower_text or "page not found" in lower_text:
                     continue
 
                 price, discount = extract_real_price_and_discount(item, text)
@@ -207,17 +247,9 @@ def scan_once():
                 if not is_valid:
                     continue
 
-                title_el = item.select_one("h2 span")
-                title = title_el.get_text(" ", strip=True) if title_el else text[:100]
-
-                link_el = item.select_one("h2 a") or item.find("a", href=True)
-                href = link_el["href"].strip() if link_el and link_el.has_attr("href") else ""
-                if href.startswith("/"):
-                    link = "https://www.amazon.in" + href.split("?")[0]
-                elif href.startswith("http"):
-                    link = href.split("?")[0]
-                else:
-                    link = base_url
+                title, link = extract_strict_product_info(item, base_url)
+                if not title or not link:
+                    continue
 
                 sig = f"{link.lower()}|{title.lower()[:70]}"
                 if sig in seen_deals:
@@ -236,8 +268,9 @@ def scan_once():
                 time.sleep(0.4)
 
         except Exception as e:
-            other_err_keywords.append(f"{kw} ({type(e).__name__})")
-            print(f"[Error {kw}]: {e}")
+            err_label = f"{kw} ({type(e).__name__})"
+            other_err_keywords.append(err_label)
+            send_instant_error(kw, type(e).__name__, str(e)[:180])
 
         time.sleep(KEYWORD_DELAY)
 
@@ -277,19 +310,18 @@ def scan_once():
         f"• नई लूट भेजी गई: {deals_sent}"
     )
 
-    # Telegram मैसेज 4096 कैरेक्टर की लिमिट से ज़्यादा न हो, इसलिए ज़रूरत पड़ने पर सुरक्षित तरीके से भेजें
     if len(report_msg) <= 4000:
         send_telegram(report_msg)
     else:
         send_telegram(report_msg[:3950] + "\n... (रिपोर्ट लंबी होने पर आगे का हिस्सा कटा)")
 
 def background_worker():
-    print("🚀 Render 55-Keyword Loot Bot Started (4s Gap, 3-Day Auto-Expire, Error Names)...")
+    print("🚀 Render 55-Keyword Loot Bot Started (Instant Error Alert + Strict Check)...")
     send_telegram(
         f"🚀 सर्चिंग चालू हो गई है!\n"
         f"• कुल कीवर्ड्स: {len(KEYWORDS)}\n"
-        f"• फ़िल्टर: 90%+ ऑफ + ₹100 या उससे कम (असली प्राइस, प्रति-यूनिट नहीं) + फ्री डिलीवरी\n"
-        f"• हर कीवर्ड के बाद {KEYWORD_DELAY} सेकंड का गैप (बिना retry के), {SEEN_EXPIRY_DAYS} दिन बाद पुराना डेटा अपने आप साफ, और रिपोर्ट में हर एरर वाले कीवर्ड का नाम भी आएगा।"
+        f"• फ़िल्टर: 90%+ ऑफ + ₹100 या उससे कम (असली प्राइस) + फ्री डिलीवरी + साफ टाइटल व /dp/ लिंक\n"
+        f"• कोई भी एरर आते ही तुरंत अलर्ट, {KEYWORD_DELAY}s गैप, {SEEN_EXPIRY_DAYS} दिन में पुराना डेटा साफ, और राउंड के बाद रिपोर्ट।"
     )
     while True:
         scan_once()
