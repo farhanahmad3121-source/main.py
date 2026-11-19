@@ -36,6 +36,28 @@ USER_AGENTS = [
 ]
 
 RAW_KEYWORDS = [
+    "spanners set", "ring spanner", "adjustable wrench", "pipe wrench", "monkey wrench",
+    "socket set", "ratchet wrench", "torque wrench", "hex key set", "nut driver",
+    "c clamp", "f clamp", "bench vise", "hand vise", "rivet gun",
+
+    # Cutting, Sawing & Shaping Tools
+    "hand saw", "hacksaw", "wood chisel", "chisel set", "utility knife",
+    "box cutter", "wire stripper", "cable cutter", "tin snips", "bolt cutter",
+    "glass cutter", "tile cutter", "hand plane", "wood rasp", "metal file",
+
+    # Measuring, Marking & Inspection Tools
+    "spirit level", "laser level", "vernier caliper", "micrometer", "steel ruler",
+    "chalk line", "marking gauge", "center punch", "scribber", "inspection mirror",
+
+    # Electrical & Soldering Tools
+    "wire crimper", "crimping tool", "voltage tester", "line tester", "continuity tester",
+    "desoldering pump", "solder wire", "heat gun", "cable tie gun", "fish tape",
+
+    # Plumbing, Auto & Home Repair Tools
+    "plunger", "drain snake", "ptfe tape", "strap wrench", "oil filter wrench",
+    "spark plug wrench", "tire lever", "air blow gun", "grease gun", "caulking gun",
+    "putty knife", "scraper tool", "pry bar", "crowbar", "mallet"
+    
     "hair trimmer", "hair cutting trimmer", "hair clipper", "cordless trimmer", "rechargeable trimmer",
     "body hair trimmer", "groin trimmer", "eyebrow trimmer", "detail trimmer", "shaver trimmer",
     "electric shaver", "foil shaver", "rotary shaver", "callus remover", "electric callous remover",
