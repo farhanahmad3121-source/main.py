@@ -36,6 +36,40 @@ USER_AGENTS = [
 ]
 
 RAW_KEYWORDS = [
+    "tawa", "kadai", "frying pan", "saucepan", "grater",
+    "peeler", "strainer", "rolling pin", "chopping board", "measuring cup",
+    "spice box", "oil dispenser", "garlic press", "lemon squeezer", "egg beater",
+    "whisk", "tongs", "spatula", "ladle", "colander",
+
+    # Gardening & Outdoor Care
+    "plant pot", "grow bag", "watering can", "garden hose", "pruning shears",
+    "garden gloves", "fertilizer", "seeds pack", "coco peat", "sprinkler",
+    "bird feeder", "outdoor light", "solar light", "pathway light", "insect trap",
+
+    # Fitness, Sports & Active Gear
+    "yoga mat", "resistance band", "skipping rope", "gym gloves", "hand gripper",
+    "shaker bottle", "foam roller", "knee sleeve", "ankle support", "wrist wrap",
+    "badminton shuttlecock", "table tennis balls", "football", "cricket ball", "swimming goggles",
+
+    # Home Safety, Security & Utility
+    "door lock", "padlock", "door stopper", "window lock", "safety latch",
+    "smoke detector", "first aid kit", "digital thermometer", "bp monitor", "weighing scale",
+    "digital scale", "magnifying glass", "battery charger", "aa batteries", "aaa batteries",
+
+    # Storage, Organizers & Everyday Misc
+    "wardrobe organizer", "drawer organizer", "under bed storage", "cloth cover", "saree cover",
+    "jewellery box", "watch box", "sunglasses case", "glasses case", "cable organizer",
+    "cord protector", "double sided tape", "duct tape", "zip ties", "velcro straps",
+
+    # Auto, Bike & Utility Accessories
+    "bike gloves", "seat cushion", "car sunshade", "car duster", "tire inflator",
+    "jumper cable", "car tissue box", "keychain", "lanyard", "id card holder",
+
+    # Pet Care & Misc Lifestyle
+    "pet bowl", "dog leash", "pet collar", "pet grooming brush", "cat litter scoop",
+    "earplugs", "eye mask", "neck pillow", "heating pad", "hot water bag",
+    "ice pack", "shoe polish", "shoe brush", "lint remover", "clothes brush"
+    
     "notebook", "diary", "pen set", "gel pens", "highlighter",
     "marker pens", "stapler", "calculator", "desk organizer", "study lamp",
     "whiteboard", "sticky notes", "file folder", "geometry box", "drawing book",
