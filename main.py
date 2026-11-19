@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Amazon Fashion Loot Bot (90%+ Off + <=₹100 + Free Delivery) Running!"
+    return "Amazon 50-Keyword Loot Bot (10m Loop + Heartbeat) Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -20,10 +20,9 @@ def run_flask():
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
-MIN_DISCOUNT = 90   # 90% या उससे ज़्यादा ऑफ
-MAX_PRICE = 100     # ₹100 या उससे कम कीमत
-LOOP_DELAY = 60
-STATUS_REPORT_INTERVAL = 1800
+MIN_DISCOUNT = 90          # 90% या उससे ज़्यादा ऑफ
+MAX_PRICE = 100            # ₹100 या उससे कम
+LOOP_DELAY = 600           # हर 10 मिनट (600 सेकंड) में दोबारा सर्च
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -32,16 +31,22 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/604.1",
 ]
 
-AMAZON_URLS = [
-    "https://www.amazon.in/s?k=mens+tshirts",
-    "https://www.amazon.in/s?k=womens+clothing",
-    "https://www.amazon.in/s?k=shoes+for+men",
-    "https://www.amazon.in/s?k=shoes+for+women",
+# 50 काम के कीवर्ड्स (बेल्ट, जूते, टी-शर्ट/टीसल, कपड़े और एक्सेसरीज़)
+KEYWORDS = [
+    "mens tshirts", "tshirt", "polo tshirt", "oversized tshirt", "mens shirts",
+    "formal shirt", "casual shirt", "joggers for men", "track pants for men", "mens jeans",
+    "mens shorts", "hoodies for men", "sweatshirts for men", "mens jackets", "kurta for men",
+    "mens ethnic wear", "boxers for men", "briefs for men", "mens vest", "compression tshirt",
+    "shoes for men", "running shoes men", "casual shoes men", "sneakers for men", "loafers men",
+    "sandals for men", "slippers for men", "flip flops men", "socks for men", "ankle socks",
+    "belts for men", "leather belt men", "wallets for men", "caps for men", "beanie cap",
+    "sunglasses for men", "womens clothing", "womens tops", "womens tshirts", "kurtis for women",
+    "leggings for women", "womens jeans", "womens joggers", "womens hoodies", "womens jackets",
+    "dresses for women", "shoes for women", "running shoes women", "casual shoes women", "sneakers women",
+    "heels for women", "sandals for women", "slippers women", "handbags for women", "sling bags women"
 ]
 
 seen_deals = set()
-last_status_by_url = {}
-last_summary_time = 0
 
 def send_telegram(msg: str):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -83,10 +88,13 @@ def has_free_delivery(text: str) -> bool:
     return ("free delivery" in t) or ("free shipping" in t)
 
 def scan_once():
-    global last_summary_time
-    cycle_statuses = []
+    status_200 = 0
+    status_err = 0
+    deals_sent = 0
 
-    for base_url in AMAZON_URLS:
+    for kw in KEYWORDS:
+        query = kw.strip().replace(" ", "+")
+        base_url = f"https://www.amazon.in/s?k={query}"
         headers = {
             "User-Agent": random.choice(USER_AGENTS),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -96,25 +104,14 @@ def scan_once():
         try:
             resp = requests.get(base_url, headers=headers, timeout=12)
             code = resp.status_code
-            cycle_statuses.append(f"{base_url.split('=')[-1]}: {code}")
 
             if code != 200:
-                prev_code = last_status_by_url.get(base_url)
-                if prev_code != code:
-                    last_status_by_url[base_url] = code
-                    send_telegram(
-                        f"⚠️ HTTP Status Alert: {code}\n"
-                        f"🔗 {base_url}\n"
-                        f"📌 Amazon ने 200 के बजाय {code} रिस्पॉन्स दिया है।"
-                    )
-                print(f"[Status {code}]: {base_url}")
-                time.sleep(random.uniform(3.0, 6.0))
+                status_err += 1
+                print(f"[Status {code}] {kw}")
+                time.sleep(random.uniform(2.0, 4.0))
                 continue
 
-            if last_status_by_url.get(base_url) not in (None, 200):
-                send_telegram(f"✅ Recovered: Status 200 OK\n🔗 {base_url}")
-            last_status_by_url[base_url] = 200
-
+            status_200 += 1
             soup = BeautifulSoup(resp.text, "html.parser")
             items = soup.select("div[data-component-type='s-search-result']")
 
@@ -126,14 +123,12 @@ def scan_once():
                 price, discount = extract_price_and_discount(text)
                 free_del = has_free_delivery(text)
 
-                # तीनों शर्तें एक साथ: 90%+ ऑफ AND <=₹100 AND Free Delivery
                 is_valid = (
                     (discount >= MIN_DISCOUNT)
                     and (price is not None)
                     and (0 < price <= MAX_PRICE)
                     and free_del
                 )
-
                 if not is_valid:
                     continue
 
@@ -156,27 +151,31 @@ def scan_once():
 
                 msg = (
                     f"👕👟 TRIPLE LOOT (90%+ OFF | <=₹100 | FREE DELIVERY)\n\n"
+                    f"🔍 Keyword: {kw}\n"
                     f"📦 {title[:160]}\n"
                     f"💰 Price: ₹{price} | 🏷️ Discount: {discount}% | 🚚 Free Delivery: Yes\n"
                     f"🔗 {link}"
                 )
                 send_telegram(msg)
-                time.sleep(0.5)
+                deals_sent += 1
+                time.sleep(0.4)
 
         except Exception as e:
-            err_msg = f"❌ Request Error: {str(e)[:140]}\n🔗 {base_url}"
-            print(err_msg)
-            send_telegram(err_msg)
+            status_err += 1
+            print(f"[Error {kw}]: {e}")
 
-        time.sleep(random.uniform(3.0, 6.0))
+        time.sleep(random.uniform(2.0, 4.0))
 
-    now = time.time()
-    if cycle_statuses and (now - last_summary_time >= STATUS_REPORT_INTERVAL):
-        last_summary_time = now
-        send_telegram("📊 Status Summary (200 / 403 / 503 Check):\n" + "\n".join(cycle_statuses))
+    # हर 10 मिनट वाले रन के आखिर में Telegram पर स्टेटस हार्टबीट भेजेगा
+    send_telegram(
+        f"✅ Bot Alive (10m Cycle Done)\n"
+        f"• Keywords Checked: {len(KEYWORDS)}\n"
+        f"• 200 OK Pages: {status_200} | Non-200/Errors: {status_err}\n"
+        f"• New Loot Alerts Sent: {deals_sent}"
+    )
 
 def background_worker():
-    print("🚀 Render Amazon Fashion Loot Worker Started (90%+ Off + <=₹100 + Free Delivery)...")
+    print("🚀 Render 50-Keyword Loot Bot Started (10m Loop + Heartbeat)...")
     while True:
         scan_once()
         time.sleep(LOOP_DELAY)
