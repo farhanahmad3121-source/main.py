@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Amazon Fashion Loot Bot (90%+ Off / Under ₹100) Running!"
+    return "Amazon Fashion Loot Bot (Strictly 90%+ Off) Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -20,10 +20,9 @@ def run_flask():
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
-MIN_DISCOUNT = 90   # 90% या उससे ज़्यादा ऑफ
-MAX_PRICE = 100     # ₹100 से कम कीमत
-LOOP_DELAY = 60     # हर साइकिल के बीच गैप (सेकंड में)
-STATUS_REPORT_INTERVAL = 1800  # हर 30 मिनट में एक बार स्टेटस समरी
+MIN_DISCOUNT = 90   # सिर्फ 90% या उससे ज़्यादा ऑफ
+LOOP_DELAY = 60
+STATUS_REPORT_INTERVAL = 1800
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -120,10 +119,9 @@ def scan_once():
                     continue
 
                 price, discount = extract_price_and_discount(text)
-                is_90_plus_off = discount >= MIN_DISCOUNT
-                is_under_100 = (price is not None) and (0 < price < MAX_PRICE)
 
-                if not (is_90_plus_off or is_under_100):
+                # सिर्फ 90% या उससे ज़्यादा ऑफ होने पर ही भेजेगा
+                if discount < MIN_DISCOUNT:
                     continue
 
                 title_el = item.select_one("h2 span")
@@ -145,7 +143,7 @@ def scan_once():
 
                 price_str = f"₹{price}" if price is not None else "N/A"
                 msg = (
-                    f"👕👟 AMAZON FASHION LOOT (90%+ OFF / <₹100)\n\n"
+                    f"👕👟 AMAZON FASHION LOOT (90%+ OFF)\n\n"
                     f"📦 {title[:160]}\n"
                     f"💰 Price: {price_str} | 🏷️ Discount: {discount}%\n"
                     f"🔗 {link}"
@@ -166,7 +164,7 @@ def scan_once():
         send_telegram("📊 Status Summary (200 / 403 / 503 Check):\n" + "\n".join(cycle_statuses))
 
 def background_worker():
-    print("🚀 Render Amazon Fashion Loot Worker Started (90%+ Off / <₹100)...")
+    print("🚀 Render Amazon Fashion Loot Worker Started (Strictly 90%+ Off)...")
     while True:
         scan_once()
         time.sleep(LOOP_DELAY)
