@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Amazon 50-Keyword Loot Bot (10m Status Report) Running!"
+    return "Amazon 55-Keyword Loot Bot (Full Diagnostics + Strict 90%+ / <=₹100 / Free Delivery) Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -63,24 +63,65 @@ def send_telegram(msg: str):
     except Exception as e:
         print(f"[Telegram Exception]: {e}")
 
-def extract_price_and_discount(text: str):
-    prices = []
-    for p in re.findall(r"₹\s*([\d,]+)", text):
-        try:
-            prices.append(int(p.replace(",", "")))
-        except ValueError:
-            pass
+def is_captcha_or_block_page(html_text: str) -> bool:
+    t = html_text.lower()
+    block_phrases = [
+        "enter the characters you see below",
+        "type the characters you see in this image",
+        "sorry, we just need to make sure you're not a robot",
+        "automated access to amazon data",
+        "api-services-support@amazon.com",
+        "request was blocked",
+    ]
+    return any(p in t for p in block_phrases)
 
+def extract_real_price_and_discount(card_element, full_text: str):
+    # 1. कार्ड के अंदर मुख्य ऑफस्क्रीन प्राइस (.a-price .a-offscreen) ढूँढने की कोशिश
+    main_prices = []
+    for el in card_element.select(".a-price .a-offscreen"):
+        raw = el.get_text(" ", strip=True)
+        parent_ctx = el.parent.parent.get_text(" ", strip=True).lower() if el.parent and el.parent.parent else ""
+        # प्रति-पीस / प्रति-काउंट कीमत छोड़ें
+        if any(unit in parent_ctx for unit in ["/ count", "/count", "/ pair", "/pair", "/ pack", "/pack", "/ piece", "/piece", "per pair", "per count"]):
+            continue
+        m = re.findall(r"₹\s*([\d,]+)", raw)
+        for num_str in m:
+            try:
+                val = int(num_str.replace(",", ""))
+                if val > 0:
+                    main_prices.append(val)
+            except ValueError:
+                pass
+
+    # अगर .a-price .a-offscreen नहीं मिला तो पूरे टेक्स्ट से प्रति-यूनिट को छोड़कर कीमत निकालें
+    if not main_prices:
+        cleaned_for_price = re.sub(
+            r"₹\s*[\d,]+\s*/\s*(count|pair|pack|piece|pc|item)",
+            "",
+            full_text,
+            flags=re.IGNORECASE,
+        )
+        for num_str in re.findall(r"₹\s*([\d,]+)", cleaned_for_price):
+            try:
+                val = int(num_str.replace(",", ""))
+                if val > 0:
+                    main_prices.append(val)
+            except ValueError:
+                pass
+
+    # आमतौर पर कार्ड में पहला/मेन प्राइस सेल प्राइस होता है, MRP बाद में होता है
+    real_price = main_prices[0] if main_prices else None
+
+    # 2. डिस्काउंट % निकालना
     discounts = []
-    for d in re.findall(r"(\d{1,3})\s*%\s*off", text, flags=re.IGNORECASE):
+    for d in re.findall(r"(\d{1,3})\s*%\s*off", full_text, flags=re.IGNORECASE):
         try:
             discounts.append(int(d))
         except ValueError:
             pass
 
-    min_price = min(prices) if prices else None
     max_discount = max(discounts) if discounts else 0
-    return min_price, max_discount
+    return real_price, max_discount
 
 def has_free_delivery(text: str) -> bool:
     t = text.lower()
@@ -91,6 +132,9 @@ def scan_once():
     count_403 = 0
     count_503 = 0
     count_other_err = 0
+    count_captcha_block = 0
+    empty_keywords = []
+    blocked_keywords = []
     deals_sent = 0
 
     for kw in KEYWORDS:
@@ -98,41 +142,54 @@ def scan_once():
         base_url = f"https://www.amazon.in/s?k={query}"
         headers = {
             "User-Agent": random.choice(USER_AGENTS),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-IN,en;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-IN,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
             "Referer": "https://www.amazon.in/",
         }
         try:
             resp = requests.get(base_url, headers=headers, timeout=12)
             code = resp.status_code
 
-            if code == 200:
-                count_200 += 1
-            elif code == 403:
+            if code == 403:
                 count_403 += 1
                 print(f"[Status 403] {kw}")
-                time.sleep(random.uniform(2.0, 4.0))
+                time.sleep(random.uniform(2.5, 4.5))
                 continue
             elif code == 503:
                 count_503 += 1
                 print(f"[Status 503] {kw}")
-                time.sleep(random.uniform(2.0, 4.0))
+                time.sleep(random.uniform(2.5, 4.5))
                 continue
-            else:
+            elif code != 200:
                 count_other_err += 1
                 print(f"[Status {code}] {kw}")
-                time.sleep(random.uniform(2.0, 4.0))
+                time.sleep(random.uniform(2.5, 4.5))
                 continue
 
+            # 200 आया है, अब चेक करें कि कहीं कैप्चा/ब्लॉक पेज तो नहीं आया
+            if is_captcha_or_block_page(resp.text):
+                count_captcha_block += 1
+                blocked_keywords.append(kw)
+                print(f"[Captcha/Blocked on 200] {kw}")
+                time.sleep(random.uniform(3.0, 5.0))
+                continue
+
+            count_200 += 1
             soup = BeautifulSoup(resp.text, "html.parser")
             items = soup.select("div[data-component-type='s-search-result']")
+
+            if len(items) == 0:
+                empty_keywords.append(kw)
+                print(f"[0 Items on 200] {kw}")
+                time.sleep(random.uniform(2.0, 4.0))
+                continue
 
             for item in items:
                 text = item.get_text(" ", strip=True)
                 if not text:
                     continue
 
-                price, discount = extract_price_and_discount(text)
+                price, discount = extract_real_price_and_discount(item, text)
                 free_del = has_free_delivery(text)
 
                 is_valid = (
@@ -178,26 +235,38 @@ def scan_once():
 
         time.sleep(random.uniform(2.0, 4.0))
 
-    total_errors = count_403 + count_503 + count_other_err
-    if total_errors == 0:
-        health_line = "✅ सब एकदम सही चल रहा है, कोई 403 / 503 या दूसरा एरर नहीं आया है!"
+    total_issues = count_403 + count_503 + count_other_err + count_captcha_block
+    if total_issues == 0:
+        health_line = "✅ सब एकदम सही चल रहा है, कोई 403 / 503 / कैप्चा या एरर नहीं आया है!"
     else:
-        health_line = f"⚠️ ध्यान दें: कुछ एरर आए (403: {count_403}, 503: {count_503}, अन्य: {count_other_err})"
+        health_line = (
+            f"⚠️ ध्यान दें: कुछ दिक्कतें आईं "
+            f"(Captcha/Block: {count_captcha_block}, 403: {count_403}, 503: {count_503}, अन्य एरर: {count_other_err})"
+        )
+
+    extra_lines = []
+    if blocked_keywords:
+        extra_lines.append(f"• ब्लॉक/कैप्चा वाले कीवर्ड्स ({len(blocked_keywords)}): {', '.join(blocked_keywords[:8])}")
+    if empty_keywords:
+        extra_lines.append(f"• 0 आइटम वाले कीवर्ड्स ({len(empty_keywords)}): {', '.join(empty_keywords[:10])}")
+
+    extra_text = ("\n" + "\n".join(extra_lines)) if extra_lines else ""
 
     send_telegram(
         f"🕒 10-Min Bot Status Report\n"
         f"{health_line}\n"
-        f"• 200 OK: {count_200}/{len(KEYWORDS)} | 403: {count_403} | 503: {count_503} | अन्य एरर: {count_other_err}\n"
+        f"• Clean 200 OK Pages: {count_200}/{len(KEYWORDS)} | Captcha/Block: {count_captcha_block}\n"
+        f"• 403: {count_403} | 503: {count_503} | अन्य एरर: {count_other_err}{extra_text}\n"
         f"• नई लूट भेजी गई: {deals_sent}"
     )
 
 def background_worker():
-    print("🚀 Render 50-Keyword Loot Bot Started (10m Status Report)...")
+    print("🚀 Render 55-Keyword Loot Bot Started (Full Diagnostics)...")
     send_telegram(
         f"🚀 सर्चिंग चालू हो गई है!\n"
         f"• कुल कीवर्ड्स: {len(KEYWORDS)}\n"
-        f"• फ़िल्टर: 90%+ ऑफ + ₹100 या उससे कम + फ्री डिलीवरी\n"
-        f"• हर 10 मिनट में स्टेटस रिपोर्ट और नई स्कैनिंग चलेगी।"
+        f"• फ़िल्टर: 90%+ ऑफ + ₹100 या उससे कम (असली प्राइस, प्रति-यूनिट नहीं) + फ्री डिलीवरी\n"
+        f"• हर 10 मिनट में 200 / Captcha / 403 / 503 / 0-Item की पूरी रिपोर्ट आएगी।"
     )
     while True:
         scan_once()
