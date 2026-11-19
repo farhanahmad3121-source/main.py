@@ -36,6 +36,44 @@ USER_AGENTS = [
 ]
 
 RAW_KEYWORDS = [
+    "noise cancelling headphones", "anc wireless headphones", "studio headphones", "dj headphones", "gaming laptop accessories",
+    "mechanical gaming keyboard", "wireless gaming mouse", "oled smart watch", "gps smartwatch", "smart fitness watch",
+    "action cam", "mirrorless camera lens", "dslr camera accessories", "wireless microphone system", "studio condenser mic",
+    "home theater speaker", "dolby soundbar", "subwoofer speaker", "party bluetooth speaker", "portable projector",
+    "smart tv stick", "4k streaming stick", "mesh wifi router", "wifi 6 router", "gaming router",
+    "nvme ssd", "external ssd", "portable hard drive", "thunderbolt dock", "usb4 hub",
+    "high wattage gan charger", "140w usb c charger", "wireless charging pad", "magsafe stand", "car dash camera",
+
+    # Expensive Kitchen & Home Appliances
+    "espresso coffee machine", "bean to cup coffee maker", "cold press juicer", "slow juicer", "stand mixer",
+    "food processor", "built in hob", "chimney kitchen", "dishwasher machine", "robot vacuum cleaner",
+    "cordless stick vacuum", "wet dry vacuum cleaner", "air purifier hepa", "dehumidifier", "tower fan",
+    "bladeless fan", "smart air cooler", "instant geyser", "storage water heater", "oil filled radiator",
+    "convection microwave", "otg oven", "bread maker", "ice cream maker", "sous vide cooker",
+
+    # Expensive Footwear, Apparel & Fashion Brands
+    "leather boots men", "chelsea boots men", "suede shoes men", "running shoes cushioned", "carbon plate running shoes",
+    "trail running shoes", "trekking shoes", "hiking boots", "golf shoes", "basketball shoes",
+    "leather jacket men", "biker leather jacket", "bomber jacket men", "puffer jacket men", "down jacket",
+    "blazer for men", "suit jacket men", "linen shirt men", "merino wool sweater", "cashmere sweater",
+    "leather handbag women", "designer tote bag", "leather backpack women", "ankle boots women", "knee high boots women",
+    "polarized sunglasses", "aviator sunglasses", "wayfarer sunglasses", "titanium eyeglasses", "prescription glasses frame",
+
+    # Expensive Tools, Power Tools & Workshop Gear
+    "cordless impact wrench", "brushless drill", "rotary hammer drill", "angle grinder", "circular saw",
+    "jigsaw power tool", "orbital sander", "heat gun digital", "laser distance meter", "digital torque wrench",
+    "precision screwdriver kit", "soldering station", "digital oscilloscope", "bench power supply", "heavy duty tool chest",
+
+    # Expensive Fitness, Outdoor & Lifestyle Gear
+    "adjustable dumbbells", "kettlebell cast iron", "olympic barbell", "gym bench", "rowing machine compact",
+    "camping tent", "sleeping bag", "hydration pack", "trekking backpack 60l", "roof box car",
+    "car tire inflator digital", "portable jump starter", "car seat cover leather", "car subwoofer", "car amplifier",
+
+    # Expensive Grooming, Health & Personal Care
+    "ipl hair removal device", "laser hair remover", "sonic electric toothbrush", "water flosser", "massage gun",
+    "percussion massager", "facial cleansing device", "led therapy device", "smart weighing scale", "body composition scale",
+    "luxury perfume eau de parfum", "oud perfume", "designer fragrance", "electric shaver premium", "pro hair clipper"
+    
     "packing tape", "brown tape", "bubble wrap", "courier bags", "cardboard box",
     "shipping labels", "fragile sticker", "twine rope", "jute rope", "nylon rope",
     "elastic band", "rubber bands", "cable ties", "plastic wrap", "cling film",
