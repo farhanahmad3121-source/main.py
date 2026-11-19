@@ -126,7 +126,7 @@ RAW_KEYWORDS = [
     "dresses for women", "shoes for women", "running shoes women", "casual shoes women", "sneakers women",
     "heels for women", "sandals for women", "slippers women", "handbags for women", "sling bags women"
 ]
-
+KEYWORDS = list(dict.fromkeys(RAW_KEYWORDS))
 seen_deals = {}
 
 def cleanup_old_seen_deals():
