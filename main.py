@@ -193,6 +193,12 @@ def scan_once():
 
 def background_worker():
     print("🚀 Render 50-Keyword Loot Bot Started (10m Status Report)...")
+    send_telegram(
+        f"🚀 सर्चिंग चालू हो गई है!\n"
+        f"• कुल कीवर्ड्स: {len(KEYWORDS)}\n"
+        f"• फ़िल्टर: 90%+ ऑफ + ₹100 या उससे कम + फ्री डिलीवरी\n"
+        f"• हर 10 मिनट में स्टेटस रिपोर्ट और नई स्कैनिंग चलेगी।"
+    )
     while True:
         scan_once()
         time.sleep(LOOP_DELAY)
