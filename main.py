@@ -36,6 +36,20 @@ USER_AGENTS = [
 ]
 
 RAW_KEYWORDS = [
+    "steel glass", "steel plate", "steel bowl", "measuring spoon", "tea strainer",
+    "kitchen towel", "dishwashing sponge", "scrubber pad", "bowl cover", "food cover",
+    "fridge organizer", "fridge mat", "egg tray", "bottle brush", "sink brush",
+
+    # Bijli, Phone & Rozmarra Ke Kaam
+    "mobile holder", "charging cable", "earphone pouch", "cable clip", "switchboard sticker",
+    "bulb holder", "two pin plug", "three pin plug", "fuse wire", "insulation tape",
+    "led night bulb", "book light", "pocket torch", "velcro cable tie", "sim card tray pin",
+
+    # Safai, Kapde & Personal Kaam
+    "cloth clips", "laundry net bag", "shoe bag cover", "comb", "hair brush",
+    "face tissue", "wet wipes", "hand wash refill", "soap case", "toothbrush stand",
+    "cotton buds", "band aid", "safety pins", "sewing kit", "measuring tape pocket"
+    
     "mobile phone", "smartphone", "keypad mobile", "headphones", "wireless headphones",
     "gaming headset", "bluetooth speaker", "mini speaker", "smartwatch", "fitness band",
     "charging dock", "wireless charger", "otg adapter", "type c cable", "aux cable",
