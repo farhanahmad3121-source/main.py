@@ -1,8 +1,11 @@
+import gc
 import os
 import re
+import json
 import time
 import random
 import threading
+import traceback
 import requests
 from bs4 import BeautifulSoup
 from flask import Flask
@@ -10,21 +13,28 @@ from flask import Flask
 app = Flask(__name__)
 
 @app.route("/")
+@app.route("/health")
 def home():
-    return "Amazon 55-Keyword Loot Bot (Reliable Telegram Loot Retry + End-of-Cycle Report) Running!"
+    return "Amazon Loot Bot (External Keywords + File Seen Deals + 50-KW Batch Report) Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, threaded=True)
 
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
+# GitHub रेपो में नए फ़ोल्डर के अंदर कीवर्ड फ़ाइल का रास्ता
+KEYWORDS_FILE_PATH = os.environ.get("KEYWORDS_FILE", "keywords/keywords.txt")
+# Telegram में जा चुकी डील्स सेव करने वाली फ़ाइल का रास्ता
+SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
+
 MIN_DISCOUNT = 90              # 90% या उससे ज़्यादा ऑफ
 MAX_PRICE = 100                # ₹100 या उससे कम
-LOOP_DELAY = 600               # राउंड पूरा होने के बाद 10 मिनट (600 सेकंड) का इंतज़ार
+BATCH_SIZE = 50                # हर 50 कीवर्ड्स के बाद बैच रिपोर्ट
+LOOP_DELAY = 600               # पूरा राउंड खत्म होने के बाद 10 मिनट (600 सेकंड) का इंतज़ार
 KEYWORD_DELAY = 4              # हर कीवर्ड सर्च के बाद 4 सेकंड का गैप
-SEEN_EXPIRY_DAYS = 3           # 3 दिन बाद पुराने seen रिकॉर्ड अपने आप साफ/डिलीट हो जाएँगे
+SEEN_EXPIRY_DAYS = 20          # 7 या 20 दिन तक वही डील दोबारा नहीं डलेगी (यहाँ 20 दिन सेट है)
 SEEN_EXPIRY_SECONDS = SEEN_EXPIRY_DAYS * 86400
 TELEGRAM_RETRY_DELAY = 2       # Telegram भेजने में एरर आए तो हर 2 सेकंड में दोबारा ट्राई
 
@@ -35,309 +45,74 @@ USER_AGENTS = [
     "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/604.1",
 ]
 
-RAW_KEYWORDS = [
-    "noise cancelling headphones", "anc wireless headphones", "studio headphones", "dj headphones", "gaming laptop accessories",
-    "mechanical gaming keyboard", "wireless gaming mouse", "oled smart watch", "gps smartwatch", "smart fitness watch",
-    "action cam", "mirrorless camera lens", "dslr camera accessories", "wireless microphone system", "studio condenser mic",
-    "home theater speaker", "dolby soundbar", "subwoofer speaker", "party bluetooth speaker", "portable projector",
-    "smart tv stick", "4k streaming stick", "mesh wifi router", "wifi 6 router", "gaming router",
-    "nvme ssd", "external ssd", "portable hard drive", "thunderbolt dock", "usb4 hub",
-    "high wattage gan charger", "140w usb c charger", "wireless charging pad", "magsafe stand", "car dash camera",
+file_io_lock = threading.Lock()
+worker_lock = threading.Lock()
+worker_started = False
 
-    # Expensive Kitchen & Home Appliances
-    "espresso coffee machine", "bean to cup coffee maker", "cold press juicer", "slow juicer", "stand mixer",
-    "food processor", "built in hob", "chimney kitchen", "dishwasher machine", "robot vacuum cleaner",
-    "cordless stick vacuum", "wet dry vacuum cleaner", "air purifier hepa", "dehumidifier", "tower fan",
-    "bladeless fan", "smart air cooler", "instant geyser", "storage water heater", "oil filled radiator",
-    "convection microwave", "otg oven", "bread maker", "ice cream maker", "sous vide cooker",
+def load_keywords_from_file(filepath: str = KEYWORDS_FILE_PATH) -> list:
+    if not os.path.exists(filepath):
+        print(f"[Keywords] फ़ाइल नहीं मिली: {filepath}")
+        return []
 
-    # Expensive Footwear, Apparel & Fashion Brands
-    "leather boots men", "chelsea boots men", "suede shoes men", "running shoes cushioned", "carbon plate running shoes",
-    "trail running shoes", "trekking shoes", "hiking boots", "golf shoes", "basketball shoes",
-    "leather jacket men", "biker leather jacket", "bomber jacket men", "puffer jacket men", "down jacket",
-    "blazer for men", "suit jacket men", "linen shirt men", "merino wool sweater", "cashmere sweater",
-    "leather handbag women", "designer tote bag", "leather backpack women", "ankle boots women", "knee high boots women",
-    "polarized sunglasses", "aviator sunglasses", "wayfarer sunglasses", "titanium eyeglasses", "prescription glasses frame",
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            raw_content = f.read().strip()
 
-    # Expensive Tools, Power Tools & Workshop Gear
-    "cordless impact wrench", "brushless drill", "rotary hammer drill", "angle grinder", "circular saw",
-    "jigsaw power tool", "orbital sander", "heat gun digital", "laser distance meter", "digital torque wrench",
-    "precision screwdriver kit", "soldering station", "digital oscilloscope", "bench power supply", "heavy duty tool chest",
+        if not raw_content:
+            return []
 
-    # Expensive Fitness, Outdoor & Lifestyle Gear
-    "adjustable dumbbells", "kettlebell cast iron", "olympic barbell", "gym bench", "rowing machine compact",
-    "camping tent", "sleeping bag", "hydration pack", "trekking backpack 60l", "roof box car",
-    "car tire inflator digital", "portable jump starter", "car seat cover leather", "car subwoofer", "car amplifier",
+        if filepath.lower().endswith(".json"):
+            data = json.loads(raw_content)
+            if isinstance(data, list):
+                items = [str(x).strip() for x in data if str(x).strip()]
+            else:
+                items = []
+        else:
+            # हर नई लाइन या कॉमा से कीवर्ड अलग करें, खाली लाइन और # कमेंट हटाएँ
+            cleaned_lines = []
+            for line in raw_content.splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                for part in line.split(","):
+                    kw = part.strip().strip('"').strip("'")
+                    if kw:
+                        cleaned_lines.append(kw)
+            items = cleaned_lines
 
-    # Expensive Grooming, Health & Personal Care
-    "ipl hair removal device", "laser hair remover", "sonic electric toothbrush", "water flosser", "massage gun",
-    "percussion massager", "facial cleansing device", "led therapy device", "smart weighing scale", "body composition scale",
-    "luxury perfume eau de parfum", "oud perfume", "designer fragrance", "electric shaver premium", "pro hair clipper"
-    
-    "packing tape", "brown tape", "bubble wrap", "courier bags", "cardboard box",
-    "shipping labels", "fragile sticker", "twine rope", "jute rope", "nylon rope",
-    "elastic band", "rubber bands", "cable ties", "plastic wrap", "cling film",
+        return list(dict.fromkeys(items))
+    except Exception as e:
+        print(f"[Keywords Load Error]: {e}")
+        return []
 
-    # Computer, Networking & Tech Small Parts
-    "rj45 connector", "lan cable", "wifi adapter", "usb wifi dongle", "bluetooth dongle",
-    "sata cable", "ssd enclosure", "hard drive case", "cmos battery", "thermal paste",
-    "dust blower", "air blower", "screen cleaning kit", "anti static brush", "display port cable",
+def load_seen_deals() -> dict:
+    with file_io_lock:
+        if not os.path.exists(SEEN_DEALS_FILE_PATH):
+            return {}
+        try:
+            with open(SEEN_DEALS_FILE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return {str(k): float(v) for k, v in data.items() if isinstance(v, (int, float))}
+            return {}
+        except Exception as e:
+            print(f"[Seen Load Error]: {e}")
+            return {}
 
-    # Dining, Serving & Small Kitchen Extras
-    "coaster", "table mat", "placemat", "napkin holder", "toothpick holder",
-    "salt shaker", "pepper mill", "honey dispenser", "butter dish", "egg slicer",
-    "potato masher", "dough maker", "puri press", "idli stand", "dhokla maker",
+def save_seen_deals(deals_dict: dict):
+    with file_io_lock:
+        try:
+            parent_dir = os.path.dirname(SEEN_DEALS_FILE_PATH)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+            tmp_path = f"{SEEN_DEALS_FILE_PATH}.tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(deals_dict, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, SEEN_DEALS_FILE_PATH)
+        except Exception as e:
+            print(f"[Seen Save Error]: {e}")
 
-    # Washroom, Sink & Daily Small Helpers
-    "soap net", "bath loofah", "back scrubber", "shower cap", "hair catcher",
-    "drain cover", "pipe clamp", "hose pipe", "tap aerator", "water tap",
-    "door closer", "magnet catch", "hinge", "drawer slide", "furniture pads"
-    
-    "spanners set", "ring spanner", "adjustable wrench", "pipe wrench", "monkey wrench",
-    "socket set", "ratchet wrench", "torque wrench", "hex key set", "nut driver",
-    "c clamp", "f clamp", "bench vise", "hand vise", "rivet gun",
-
-    # Cutting, Sawing & Shaping Tools
-    "hand saw", "hacksaw", "wood chisel", "chisel set", "utility knife",
-    "box cutter", "wire stripper", "cable cutter", "tin snips", "bolt cutter",
-    "glass cutter", "tile cutter", "hand plane", "wood rasp", "metal file",
-
-    # Measuring, Marking & Inspection Tools
-    "spirit level", "laser level", "vernier caliper", "micrometer", "steel ruler",
-    "chalk line", "marking gauge", "center punch", "scribber", "inspection mirror",
-
-    # Electrical & Soldering Tools
-    "wire crimper", "crimping tool", "voltage tester", "line tester", "continuity tester",
-    "desoldering pump", "solder wire", "heat gun", "cable tie gun", "fish tape",
-
-    # Plumbing, Auto & Home Repair Tools
-    "plunger", "drain snake", "ptfe tape", "strap wrench", "oil filter wrench",
-    "spark plug wrench", "tire lever", "air blow gun", "grease gun", "caulking gun",
-    "putty knife", "scraper tool", "pry bar", "crowbar", "mallet"
-    
-    "hair trimmer", "hair cutting trimmer", "hair clipper", "cordless trimmer", "rechargeable trimmer",
-    "body hair trimmer", "groin trimmer", "eyebrow trimmer", "detail trimmer", "shaver trimmer",
-    "electric shaver", "foil shaver", "rotary shaver", "callus remover", "electric callous remover",
-    "blackhead remover", "facial steamer", "ultrasonic skin scrubber", "led face mask", "scalp massager",
-
-    # Earbuds, Headphones, Speakers & Audio Gadgets
-    "tws earbuds", "gaming earbuds", "anc earbuds", "open ear earbuds", "bone conduction headphones",
-    "over ear headphones", "on ear headphones", "wired earphones", "type c earphones", "lightning earphones",
-    "soundbar", "portable speaker", "party speaker", "karaoke mic", "wireless mic",
-    "collar mic", "clip mic", "lavalier mic", "voice recorder", "fm transmitter",
-
-    # Chargers, Cables, Power & Battery Gadgets
-    "65w charger", "120w charger", "gan charger", "car fast charger", "dual port charger",
-    "multi port charger", "magsafe charger", "magsafe power bank", "20000mah power bank", "10000mah power bank",
-    "magnetic power bank", "solar power bank", "braided usb cable", "magnetic charging cable", "3 in 1 charging cable",
-    "fast charging cable", "usb hub", "powered usb hub", "type c hub", "hdmi switcher",
-
-    # Smart Watch, Band, Tracker & Wearable Gadgets
-    "calling smartwatch", "amoled smartwatch", "kids smartwatch", "smart ring", "smart band",
-    "bluetooth tracker", "key finder tag", "smart glasses", "vr headset", "3d vr box",
-
-    # Mobile, Camera & Content Creator Gadgets
-    "gimbal stabilizer", "phone gimbal", "selfie stick", "selfie stick tripod", "mini tripod",
-    "flexible tripod", "octopus tripod", "clip on lens", "macro lens phone", "wide angle lens",
-    "video light", "pocket led light", "rgb light", "webcam", "hd webcam",
-    "action camera", "mini camera", "dashcam", "doorbell camera", "security camera",
-
-    # Computer, Laptop, Desk & Mini Gadgets
-    "wireless mouse", "gaming mouse", "vertical mouse", "silent mouse", "mechanical keyboard",
-    "wireless keyboard", "mini keyboard", "numeric keypad", "laptop cooling pad", "laptop stand",
-    "usb fan", "mini desk fan", "clip fan", "neck fan", "portable fan",
-    "mini humidifier", "air purifier mini", "digital clock", "alarm clock", "smart plug",
-
-    # Home, Kitchen, Auto & Utility Gadgets
-    "electric screwdriver", "rechargeable drill", "digital multimeter", "laser measure", "thermal gun",
-    "milk frother", "electric frother", "portable blender", "juicer bottle", "electric kettle mini",
-    "electronic luggage scale", "digital tds meter", "moisture meter", "soil meter", "car air purifier",
-    "car jump starter", "blind spot mirror", "usb led light", "motion sensor light", "cabinet light"
-    
-    "monitor stand", "laptop riser", "mouse pad", "desk mat", "cable sleeve",
-    "pen stand", "document holder", "book stand", "clipboard", "stamp pad",
-    "correction tape", "binder clips", "paper clips", "push pins", "laminator pouches",
-
-    # Extra Cleaning, Laundry & Home Care
-    "microfiber mop", "spin mop refill", "broom", "dustpan", "toilet cleaner",
-    "drain cleaner", "descaler", "fabric softener", "stain remover", "clothes peg",
-    "drying rack", "ironing board cover", "mattress topper", "sofa cover", "cushion cover",
-
-    # Bike, Car & Travel Extras
-    "bike phone mount", "helmet visor", "helmet lock", "tank bag", "bungee cord",
-    "car charger", "car organizer", "sun visor organizer", "neck rest", "lumbar pillow",
-    "luggage cover", "packing cubes", "sling bag", "waist pouch", "rain cover",
-
-    # Pooja, Festive & Home Vibes
-    "pooja thali", "diya", "incense holder", "agarbatti stand", "camphor burner",
-    "toran", "fairy lights", "string lights", "tea light holders", "aroma diffuser",
-
-    # Smart/Tech & Everyday Small Utilities
-    "hdmi cable", "vga cable", "ethernet cable", "card reader", "stylus pen",
-    "screen guard", "camera lens protector", "sim ejector", "coin pouch", "card holder",
-    "key ring", "magnetic hook", "anti slip mat", "silicone mat", "coaster set"
-    
-    "steel glass", "steel plate", "steel bowl", "measuring spoon", "tea strainer",
-    "kitchen towel", "dishwashing sponge", "scrubber pad", "bowl cover", "food cover",
-    "fridge organizer", "fridge mat", "egg tray", "bottle brush", "sink brush",
-
-    # Bijli, Phone & Rozmarra Ke Kaam
-    "mobile holder", "charging cable", "earphone pouch", "cable clip", "switchboard sticker",
-    "bulb holder", "two pin plug", "three pin plug", "fuse wire", "insulation tape",
-    "led night bulb", "book light", "pocket torch", "velcro cable tie", "sim card tray pin",
-
-    # Safai, Kapde & Personal Kaam
-    "cloth clips", "laundry net bag", "shoe bag cover", "comb", "hair brush",
-    "face tissue", "wet wipes", "hand wash refill", "soap case", "toothbrush stand",
-    "cotton buds", "band aid", "safety pins", "sewing kit", "measuring tape pocket"
-    
-    "mobile phone", "smartphone", "keypad mobile", "headphones", "wireless headphones",
-    "gaming headset", "bluetooth speaker", "mini speaker", "smartwatch", "fitness band",
-    "charging dock", "wireless charger", "otg adapter", "type c cable", "aux cable",
-
-    # Home & Kitchen Useful Items (नए वाले)
-    "tiffin box", "steel tiffin", "insulated lunch box", "water dispenser", "tea kettle",
-    "milk boiler", "dosa tawa", "chapati maker", "rotary chopper", "garlic chopper",
-    "spice rack", "cutlery stand", "dish drying rack", "sink strainer", "sink mat",
-    "bin bag", "dustbin", "pedal dustbin", "tissue holder", "paper roll holder",
-
-    # Home Comfort, Lighting & Daily Utility
-    "table lamp", "night lamp", "reading light", "emergency light", "rechargeable torch",
-    "extension cord", "spike guard", "power strip", "wall hook", "adhesive hooks",
-    "coat hanger", "pants hanger", "laundry basket", "foldable basket", "storage box",
-    "plastic container set", "glass jar set", "airtight container", "ice tray", "water jug",
-
-    # Grooming, Health & Personal Useful
-    "trimmer", "beard trimmer", "nose trimmer", "epilator", "nail clipper",
-    "foot scrubber", "pumice stone", "face roller", "gua sha", "lip balm",
-    "sunscreen stick", "deodorant", "perfume", "body mist", "sanitizer"
-    
-    "tawa", "kadai", "frying pan", "saucepan", "grater",
-    "peeler", "strainer", "rolling pin", "chopping board", "measuring cup",
-    "spice box", "oil dispenser", "garlic press", "lemon squeezer", "egg beater",
-    "whisk", "tongs", "spatula", "ladle", "colander",
-
-    # Gardening & Outdoor Care
-    "plant pot", "grow bag", "watering can", "garden hose", "pruning shears",
-    "garden gloves", "fertilizer", "seeds pack", "coco peat", "sprinkler",
-    "bird feeder", "outdoor light", "solar light", "pathway light", "insect trap",
-
-    # Fitness, Sports & Active Gear
-    "yoga mat", "resistance band", "skipping rope", "gym gloves", "hand gripper",
-    "shaker bottle", "foam roller", "knee sleeve", "ankle support", "wrist wrap",
-    "badminton shuttlecock", "table tennis balls", "football", "cricket ball", "swimming goggles",
-
-    # Home Safety, Security & Utility
-    "door lock", "padlock", "door stopper", "window lock", "safety latch",
-    "smoke detector", "first aid kit", "digital thermometer", "bp monitor", "weighing scale",
-    "digital scale", "magnifying glass", "battery charger", "aa batteries", "aaa batteries",
-
-    # Storage, Organizers & Everyday Misc
-    "wardrobe organizer", "drawer organizer", "under bed storage", "cloth cover", "saree cover",
-    "jewellery box", "watch box", "sunglasses case", "glasses case", "cable organizer",
-    "cord protector", "double sided tape", "duct tape", "zip ties", "velcro straps",
-
-    # Auto, Bike & Utility Accessories
-    "bike gloves", "seat cushion", "car sunshade", "car duster", "tire inflator",
-    "jumper cable", "car tissue box", "keychain", "lanyard", "id card holder",
-
-    # Pet Care & Misc Lifestyle
-    "pet bowl", "dog leash", "pet collar", "pet grooming brush", "cat litter scoop",
-    "earplugs", "eye mask", "neck pillow", "heating pad", "hot water bag",
-    "ice pack", "shoe polish", "shoe brush", "lint remover", "clothes brush"
-    
-    "notebook", "diary", "pen set", "gel pens", "highlighter",
-    "marker pens", "stapler", "calculator", "desk organizer", "study lamp",
-    "whiteboard", "sticky notes", "file folder", "geometry box", "drawing book",
-
-    # Tools, Hardware & Car/Bike Care
-    "screwdriver set", "drill machine", "measuring tape", "allen key set", "glue gun",
-    "soldering iron", "pliers", "hammer", "wrench set", "car phone holder",
-    "car vacuum cleaner", "microfiber cloth", "bike cover", "helmet", "bike lock",
-
-    # Bathroom & Cleaning
-    "toilet brush", "bathroom mat", "shower curtain", "liquid detergent", "dishwash liquid",
-    "floor cleaner", "glass cleaner", "garbage bags", "air freshener", "bath mat",
-
-    # Travel, Bags & Storage
-    "travel pouch", "toiletries bag", "duffle trolley", "passport holder", "luggage tags",
-    "vacuum storage bags", "shoe rack", "shoe bag", "key holder", "hanger set",
-
-    # Kids, Gifts & Home Decor
-    "remote control car", "building blocks", "board game", "water gun", "piggy bank",
-    "photo frame", "showpiece", "artificial plants", "candles", "table runner", 
-    "mixer grinder", "hand blender", "electric kettle", "induction cooktop", "toaster",
-    "sandwich maker", "air fryer", "microwave oven", "water purifier", "pressure cooker",
-    "gas stove", "rice cooker", "chopper", "juicer mixer grinder", "coffee maker",
-
-    # Home Appliances (Washing Machine, Cooler, etc.)
-    "washing machine", "semi automatic washing machine", "fully automatic washing machine",
-    "air cooler", "ceiling fan", "table fan", "pedestal fan", "room heater",
-    "iron press", "steam iron", "vacuum cleaner", "led bulb", "extension board",
-
-    # Home & Living / Daily Essentials
-    "bedsheet", "double bedsheet", "pillow", "pillow cover", "curtains",
-    "door mat", "bath towel", "blanket", "comforter", "mattress protector",
-    "storage containers", "lunch box", "water bottle", "flask bottle", "soap dispenser",
-    "laundry bag", "wall clock", "led strip light", "mosquito net", "mop",
-
-    # Electronics & Gadgets
-    "earbuds", "bluetooth earphones", "neckband", "power bank", "usb cable",
-    "fast charger", "mobile stand", "mouse", "keyboard", "pendrive",
-    "memory card", "ring light", "tripod", "smart bulb", "torch light",
-
-    # Grooming, Health & Misc Utility
-    "hair dryer", "hair straightener", "shaving kit", "razor blades", "body lotion",
-    "hair oil", "shampoo", "conditioner", "toothpaste", "toothbrush",
-    "umbrella", "raincoat", "backpack", "laptop bag", "tool kit", 
-    "mens tshirts", "tshirt", "polo tshirt", "oversized tshirt", "compression tshirt",
-    "henley tshirt", "round neck tshirt", "v neck tshirt", "full sleeve tshirt", "sleeveless tshirt",
-    "gym tshirt men", "cotton tshirt men", "graphic tshirt men", "plain tshirt men", "striped tshirt men",
-    "mens shirts", "formal shirt", "casual shirt", "linen shirt men", "denim shirt men",
-    "checked shirt men", "flannel shirt men", "joggers for men", "track pants for men", "mens jeans",
-    "slim fit jeans men", "cargo pants men", "chinos for men", "mens shorts", "denim shorts men",
-    "cotton shorts men", "hoodies for men", "sweatshirts for men", "mens jackets", "bomber jacket men",
-    "windcheater men", "kurta for men", "mens ethnic wear", "pathani kurta men", "nehru jacket men",
-    "boxers for men", "briefs for men", "mens vest", "thermal wear men", "night suit men",
-    "pajama for men", "dhoti kurta men", "tracksuit for men", "sweater for men", "cardigan men",
-    "shoes for men", "running shoes men", "casual shoes men", "sneakers for men", "loafers men",
-    "formal shoes men", "sports shoes men", "sandals for men", "slippers for men", "flip flops men",
-    "clogs for men", "socks for men", "ankle socks", "crew socks men", "no show socks men",
-    "belts for men", "leather belt men", "wallets for men", "leather wallet men", "caps for men",
-    "baseball cap men", "beanie cap", "sunglasses for men", "watch for men", "smartwatch men",
-    "backpack for men", "messenger bag men", "duffel bag men", "gym bag men", "tie for men",
-    "handkerchief men", "muffler for men", "gloves for men", "earphones men", "trimmer for men",
-    "face wash", "mens face wash", "womens face wash", "salicylic acid face wash", "niacinamide face wash",
-    "vitamin c face wash", "charcoal face wash", "neem face wash", "foaming face wash", "gel face wash",
-    "acne face wash", "oil control face wash", "brightening face wash", "gentle face wash", "face cleanser",
-    "face scrub", "lip balm", "moisturizer face", "sunscreen lotion", "toner face",
-    "womens clothing", "womens tops", "crop tops women", "womens tshirts", "oversized tshirt women",
-    "womens shirts", "tunics for women", "kurtis for women", "kurti set women", "anarkali kurti",
-    "straight kurti", "leggings for women", "jeggings for women", "womens jeans", "wide leg jeans women",
-    "palazzo for women", "womens joggers", "womens track pants", "womens shorts", "skirts for women",
-    "womens hoodies", "womens sweatshirts", "womens jackets", "cardigan for women", "sweater for women",
-    "dresses for women", "maxi dress women", "midi dress women", "bodycon dress women", "sarees for women",
-    "lehenga for women", "dupatta for women", "nightwear for women", "co ord set women", "shrug for women",
-    "shoes for women", "running shoes women", "casual shoes women", "sneakers women", "walking shoes women",
-    "heels for women", "block heels women", "flats for women", "bellies for women", "sandals for women",
-    "slippers women", "flip flops women", "socks for women", "ankle socks women", "handbags for women",
-    "sling bags women", "tote bag women", "backpack for women", "clutch bag women", "wallets for women",
-    "sunglasses for women", "watch for women", "jewellery set women", "earrings for women", "necklaces women",
-    "bangles for women", "hair clips women", "scrunchies women", "scarf for women", "dupatta set"
-    "mens tshirts", "tshirt", "polo tshirt", "oversized tshirt", "mens shirts",
-    "formal shirt", "casual shirt", "joggers for men", "track pants for men", "mens jeans",
-    "mens shorts", "hoodies for men", "sweatshirts for men", "mens jackets", "kurta for men",
-    "mens ethnic wear", "boxers for men", "briefs for men", "mens vest", "compression tshirt",
-    "shoes for men", "running shoes men", "casual shoes men", "sneakers for men", "loafers men",
-    "sandals for men", "slippers for men", "flip flops men", "socks for men", "ankle socks",
-    "belts for men", "leather belt men", "wallets for men", "caps for men", "beanie cap",
-    "sunglasses for men", "womens clothing", "womens tops", "womens tshirts", "kurtis for women",
-    "leggings for women", "womens jeans", "womens joggers", "womens hoodies", "womens jackets",
-    "dresses for women", "shoes for women", "running shoes women", "casual shoes women", "sneakers women",
-    "heels for women", "sandals for women", "slippers women", "handbags for women", "sling bags women"
-]
-KEYWORDS = list(dict.fromkeys(RAW_KEYWORDS))
-seen_deals = {}
+seen_deals = load_seen_deals()
 
 def cleanup_old_seen_deals():
     now = time.time()
@@ -345,6 +120,7 @@ def cleanup_old_seen_deals():
     for k in expired_keys:
         del seen_deals[k]
     if expired_keys:
+        save_seen_deals(seen_deals)
         print(f"[Cleanup] {len(expired_keys)} पुराने seen आइटम ({SEEN_EXPIRY_DAYS} दिन पुराने) हटा दिए गए।")
 
 def send_telegram(msg: str, retry_forever: bool = False) -> bool:
@@ -366,7 +142,6 @@ def send_telegram(msg: str, retry_forever: bool = False) -> bool:
             if r.status_code == 200:
                 return True
 
-            # Telegram ने 429 (Too Many Requests) दिया हो तो retry_after सम्मान करें
             retry_after = TELEGRAM_RETRY_DELAY
             try:
                 resp_json = r.json()
@@ -386,6 +161,10 @@ def send_telegram(msg: str, retry_forever: bool = False) -> bool:
             if not retry_forever:
                 return False
             time.sleep(TELEGRAM_RETRY_DELAY)
+
+def send_alert_safe(msg: str):
+    if not send_telegram(msg, retry_forever=False):
+        send_telegram(msg, retry_forever=True)
 
 def is_captcha_or_block_page(html_text: str) -> bool:
     t = html_text.lower()
@@ -471,167 +250,282 @@ def extract_strict_product_info(item):
 
     return title, product_link
 
-def scan_once():
-    cleanup_old_seen_deals()
+def build_batch_report(
+    batch_num: int,
+    total_batches: int,
+    start_idx: int,
+    end_idx: int,
+    batch_ok: int,
+    batch_403: list,
+    batch_503: list,
+    batch_blocked: list,
+    batch_other_err: list,
+    batch_empty: list,
+    batch_deals: int,
+):
+    batch_len = end_idx - start_idx
+    err_403_n = len(batch_403)
+    err_503_n = len(batch_503)
+    blk_n = len(batch_blocked)
+    oth_n = len(batch_other_err)
+    emp_n = len(batch_empty)
+    total_bad = err_403_n + err_503_n + blk_n + oth_n
 
-    count_200 = 0
-    err_403_keywords = []
-    err_503_keywords = []
-    other_err_keywords = []
-    blocked_keywords = []
-    empty_keywords = []
-    deals_sent = 0
-
-    for kw in KEYWORDS:
-        query = kw.strip().replace(" ", "+")
-        base_url = f"https://www.amazon.in/s?k={query}"
-        headers = {
-            "User-Agent": random.choice(USER_AGENTS),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-IN,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Referer": "https://www.amazon.in/",
-        }
-        try:
-            resp = requests.get(base_url, headers=headers, timeout=12)
-            code = resp.status_code
-
-            if code == 403:
-                err_403_keywords.append(kw)
-                print(f"[Status 403] {kw}")
-                time.sleep(KEYWORD_DELAY)
-                continue
-            elif code == 503:
-                err_503_keywords.append(kw)
-                print(f"[Status 503] {kw}")
-                time.sleep(KEYWORD_DELAY)
-                continue
-            elif code != 200:
-                other_err_keywords.append(f"{kw} (HTTP {code})")
-                print(f"[Status {code}] {kw}")
-                time.sleep(KEYWORD_DELAY)
-                continue
-
-            if is_captcha_or_block_page(resp.text):
-                blocked_keywords.append(kw)
-                print(f"[Captcha/Blocked on 200] {kw}")
-                time.sleep(KEYWORD_DELAY)
-                continue
-
-            count_200 += 1
-            soup = BeautifulSoup(resp.text, "html.parser")
-            items = soup.select("div[data-component-type='s-search-result']")
-
-            if len(items) == 0:
-                empty_keywords.append(kw)
-                print(f"[0 Items on 200] {kw}")
-                time.sleep(KEYWORD_DELAY)
-                continue
-
-            for item in items:
-                text = item.get_text(" ", strip=True)
-                if not text:
-                    continue
-
-                lower_text = text.lower()
-                if "currently unavailable" in lower_text or "page not found" in lower_text:
-                    continue
-
-                price, discount = extract_real_price_and_discount(item, text)
-                free_del = has_free_delivery(text)
-
-                is_valid = (
-                    (discount >= MIN_DISCOUNT)
-                    and (price is not None)
-                    and (0 < price <= MAX_PRICE)
-                    and free_del
-                )
-                if not is_valid:
-                    continue
-
-                title, link = extract_strict_product_info(item)
-                if not title or not link:
-                    continue
-
-                sig = f"{link.lower()}|{title.lower()[:70]}"
-                if sig in seen_deals:
-                    continue
-
-                msg = (
-                    f"👕👟 TRIPLE LOOT (90%+ OFF | <=₹100 | FREE DELIVERY)\n\n"
-                    f"🔍 Keyword: {kw}\n"
-                    f"📦 {title[:160]}\n"
-                    f"💰 Price: ₹{price} | 🏷️ Discount: {discount}% | 🚚 Free Delivery: Yes\n"
-                    f"🔗 {link}"
-                )
-
-                # Telegram भेजने में कोई भी एरर आए तो सफल होने तक दोबारा ट्राई करेगा
-                sent_ok = send_telegram(msg, retry_forever=True)
-                if sent_ok:
-                    seen_deals[sig] = time.time()
-                    deals_sent += 1
-                time.sleep(0.4)
-
-        except Exception as e:
-            other_err_keywords.append(f"{kw} ({type(e).__name__})")
-            print(f"[Error {kw}]: {e}")
-
-        time.sleep(KEYWORD_DELAY)
-
-    count_403 = len(err_403_keywords)
-    count_503 = len(err_503_keywords)
-    count_other_err = len(other_err_keywords)
-    count_captcha_block = len(blocked_keywords)
-
-    total_issues = count_403 + count_503 + count_other_err + count_captcha_block
-    if total_issues == 0:
-        health_line = "✅ सब एकदम सही चल रहा है, कोई 403 / 503 / कैप्चा या एरर नहीं आया है!"
+    if total_bad == 0 and emp_n == 0:
+        status_line = f"✅ बैच {batch_num}/{total_batches} (#{start_idx+1}-{end_idx}): सभी {batch_len} नाम एकदम सही (200 OK) गए, कोई गड़बड़ी नहीं!"
+    elif total_bad == 0:
+        status_line = f"ℹ️ बैच {batch_num}/{total_batches} (#{start_idx+1}-{end_idx}): {batch_ok}/{batch_len} नाम 200 OK गए, {emp_n} में 0 आइटम दिखे।"
     else:
-        health_line = (
-            f"⚠️ ध्यान दें: कुछ दिक्कतें आईं "
-            f"(Captcha/Block: {count_captcha_block}, 403: {count_403}, 503: {count_503}, अन्य एरर: {count_other_err})"
+        status_line = (
+            f"⚠️ बैच {batch_num}/{total_batches} (#{start_idx+1}-{end_idx}) में गड़बड़ी! "
+            f"(200 OK: {batch_ok}/{batch_len} | 403: {err_403_n} | 503: {err_503_n} | ब्लॉक/कैप्चा: {blk_n} | अन्य एरर: {oth_n})"
         )
 
-    detail_lines = []
-    if err_503_keywords:
-        detail_lines.append(f"• 503 एरर वाले कीवर्ड्स ({count_503}): {', '.join(err_503_keywords)}")
-    if err_403_keywords:
-        detail_lines.append(f"• 403 एरर वाले कीवर्ड्स ({count_403}): {', '.join(err_403_keywords)}")
-    if other_err_keywords:
-        detail_lines.append(f"• अन्य एरर वाले कीवर्ड्स ({count_other_err}): {', '.join(other_err_keywords)}")
-    if blocked_keywords:
-        detail_lines.append(f"• ब्लॉक/कैप्चा वाले कीवर्ड्स ({count_captcha_block}): {', '.join(blocked_keywords)}")
-    if empty_keywords:
-        detail_lines.append(f"• 0 आइटम वाले कीवर्ड्स ({len(empty_keywords)}): {', '.join(empty_keywords)}")
+    lines = [
+        f"📦 Batch Report ({batch_num}/{total_batches}) — Keywords #{start_idx+1} to {end_idx}",
+        status_line,
+        f"• सही गए (200 OK): {batch_ok}/{batch_len} | 0 आइटम: {emp_n} | नई लूट: {batch_deals}",
+    ]
 
-    details_text = ("\n" + "\n".join(detail_lines)) if detail_lines else ""
+    if batch_403:
+        lines.append(f"• ❌ 403 (Amazon ब्लॉक/अस्वीकार) [{err_403_n}]: {', '.join(batch_403[:20])}")
+    if batch_503:
+        lines.append(f"• ❌ 503 (Amazon सर्वर बिज़ी/डाउन) [{err_503_n}]: {', '.join(batch_503[:20])}")
+    if batch_blocked:
+        lines.append(f"• ❌ कैप्चा/रोबोट पेज [{blk_n}]: {', '.join(batch_blocked[:20])}")
+    if batch_other_err:
+        lines.append(f"• ❌ अन्य एरर/टाइमआउट [{oth_n}]: {', '.join(batch_other_err[:20])}")
+    if batch_empty:
+        lines.append(f"• ⚪ 0 आइटम वाले नाम [{emp_n}]: {', '.join(batch_empty[:25])}")
 
-    report_msg = (
-        f"🕒 10-Min Bot Status Report\n"
-        f"{health_line}\n"
-        f"• Clean 200 OK Pages: {count_200}/{len(KEYWORDS)} | Captcha/Block: {count_captcha_block}\n"
-        f"• 403: {count_403} | 503: {count_503} | अन्य एरर: {count_other_err}{details_text}\n"
-        f"• नई लूट भेजी गई: {deals_sent}"
-    )
+    report = "\n".join(lines)
+    if len(report) > 3950:
+        report = report[:3940] + "\n... (लिस्ट लंबी होने पर कटी)"
+    return report
 
-    if len(report_msg) <= 4000:
-        send_telegram(report_msg, retry_forever=False)
+def scan_once():
+    global seen_deals
+    if not seen_deals:
+        seen_deals = load_seen_deals()
+    cleanup_old_seen_deals()
+
+    keywords = load_keywords_from_file(KEYWORDS_FILE_PATH)
+    total_kw = len(keywords)
+    if total_kw == 0:
+        send_alert_safe(
+            f"⚠️ '{KEYWORDS_FILE_PATH}' में कोई कीवर्ड नहीं मिला! "
+            f"GitHub फ़ोल्डर में फ़ाइल बनाकर कीवर्ड्स डालें।"
+        )
+        return
+
+    total_batches = (total_kw + BATCH_SIZE - 1) // BATCH_SIZE
+
+    overall_200 = 0
+    overall_403 = 0
+    overall_503 = 0
+    overall_blocked = 0
+    overall_other_err = 0
+    overall_empty = 0
+    overall_deals = 0
+
+    session = requests.Session()
+
+    try:
+        for batch_idx in range(total_batches):
+            start_idx = batch_idx * BATCH_SIZE
+            end_idx = min(start_idx + BATCH_SIZE, total_kw)
+            batch_kws = keywords[start_idx:end_idx]
+
+            b_ok = 0
+            b_403 = []
+            b_503 = []
+            b_blocked = []
+            b_other = []
+            b_empty = []
+            b_deals = 0
+
+            for kw in batch_kws:
+                query = kw.strip().replace(" ", "+")
+                base_url = f"https://www.amazon.in/s?k={query}"
+                headers = {
+                    "User-Agent": random.choice(USER_AGENTS),
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                    "Accept-Language": "en-IN,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
+                    "Referer": "https://www.amazon.in/",
+                }
+                soup = None
+                resp = None
+                try:
+                    resp = session.get(base_url, headers=headers, timeout=12)
+                    code = resp.status_code
+
+                    if code == 403:
+                        b_403.append(kw)
+                        print(f"[Status 403] {kw}")
+                    elif code == 503:
+                        b_503.append(kw)
+                        print(f"[Status 503] {kw}")
+                    elif code != 200:
+                        b_other.append(f"{kw} (HTTP {code})")
+                        print(f"[Status {code}] {kw}")
+                    elif is_captcha_or_block_page(resp.text):
+                        b_blocked.append(kw)
+                        print(f"[Captcha/Blocked on 200] {kw}")
+                    else:
+                        b_ok += 1
+                        soup = BeautifulSoup(resp.text, "html.parser")
+                        items = soup.select("div[data-component-type='s-search-result']")
+
+                        if len(items) == 0:
+                            b_empty.append(kw)
+                            print(f"[0 Items on 200] {kw}")
+                        else:
+                            for item in items:
+                                text = item.get_text(" ", strip=True)
+                                if not text:
+                                    continue
+
+                                lower_text = text.lower()
+                                if "currently unavailable" in lower_text or "page not found" in lower_text:
+                                    continue
+
+                                price, discount = extract_real_price_and_discount(item, text)
+                                free_del = has_free_delivery(text)
+
+                                is_valid = (
+                                    (discount >= MIN_DISCOUNT)
+                                    and (price is not None)
+                                    and (0 < price <= MAX_PRICE)
+                                    and free_del
+                                )
+                                if not is_valid:
+                                    continue
+
+                                title, link = extract_strict_product_info(item)
+                                if not title or not link:
+                                    continue
+
+                                sig = f"{link.lower()}|{title.lower()[:70]}"
+                                if sig in seen_deals:
+                                    continue
+
+                                msg = (
+                                    f"👕👟 TRIPLE LOOT (90%+ OFF | <=₹100 | FREE DELIVERY)\n\n"
+                                    f"🔍 Keyword: {kw}\n"
+                                    f"📦 {title[:160]}\n"
+                                    f"💰 Price: ₹{price} | 🏷️ Discount: {discount}% | 🚚 Free Delivery: Yes\n"
+                                    f"🔗 {link}"
+                                )
+
+                                sent_ok = send_telegram(msg, retry_forever=True)
+                                if sent_ok:
+                                    seen_deals[sig] = time.time()
+                                    save_seen_deals(seen_deals)
+                                    b_deals += 1
+                                time.sleep(0.4)
+
+                except Exception as e:
+                    b_other.append(f"{kw} ({type(e).__name__})")
+                    print(f"[Error {kw}]: {e}")
+                finally:
+                    del soup
+                    del resp
+
+                time.sleep(KEYWORD_DELAY)
+
+            overall_200 += b_ok
+            overall_403 += len(b_403)
+            overall_503 += len(b_503)
+            overall_blocked += len(b_blocked)
+            overall_other_err += len(b_other)
+            overall_empty += len(b_empty)
+            overall_deals += b_deals
+
+            batch_msg = build_batch_report(
+                batch_num=batch_idx + 1,
+                total_batches=total_batches,
+                start_idx=start_idx,
+                end_idx=end_idx,
+                batch_ok=b_ok,
+                batch_403=b_403,
+                batch_503=b_503,
+                batch_blocked=b_blocked,
+                batch_other_err=b_other,
+                batch_empty=b_empty,
+                batch_deals=b_deals,
+            )
+            send_alert_safe(batch_msg)
+            gc.collect()
+
+    finally:
+        session.close()
+        gc.collect()
+
+    total_issues = overall_403 + overall_503 + overall_blocked + overall_other_err
+    if total_issues == 0:
+        health_line = "✅ पूरा चक्र एकदम सही चला, कोई 403 / 503 / कैप्चा या अन्य एरर नहीं आया!"
     else:
-        send_telegram(report_msg[:3950] + "\n... (रिपोर्ट लंबी होने पर आगे का हिस्सा कटा)", retry_forever=False)
+        health_line = (
+            f"⚠️ पूरे चक्र में दिक्कतें आईं: "
+            f"403={overall_403}, 503={overall_503}, ब्लॉक/कैप्चा={overall_blocked}, अन्य एरर={overall_other_err}"
+        )
+
+    final_report = (
+        f"🏁 Full Cycle Complete ({total_kw} Keywords in {total_batches} Batches)\n"
+        f"{health_line}\n"
+        f"• कुल 200 OK: {overall_200}/{total_kw} | 0 आइटम: {overall_empty}\n"
+        f"• कुल नई लूट भेजी गई: {overall_deals}\n"
+        f"• अब {LOOP_DELAY // 60} मिनट बाद अगला चक्र शुरू होगा।"
+    )
+    send_alert_safe(final_report)
 
 def background_worker():
-    print("🚀 Render 55-Keyword Loot Bot Started (Telegram Loot Retry + End-of-Cycle Report)...")
-    send_telegram(
-        f"🚀 सर्चिंग चालू हो गई है!\n"
-        f"• कुल कीवर्ड्स: {len(KEYWORDS)}\n"
-        f"• फ़िल्टर: 90%+ ऑफ + ₹100 या उससे कम (असली प्राइस) + फ्री डिलीवरी + साफ टाइटल व /dp/ लिंक\n"
-        f"• लूट भेजते वक्त Telegram में कोई भी एरर आए तो सफल होने तक दोबारा ट्राई होगा, {KEYWORD_DELAY}s गैप रहेगा, और 55 कीवर्ड्स/चक्र पूरा होने पर रिपोर्ट आएगी।"
-    )
-    while True:
-        scan_once()
-        time.sleep(LOOP_DELAY)
+    global worker_started
+    with worker_lock:
+        if worker_started:
+            return
+        worker_started = True
+
+    try:
+        initial_kws = load_keywords_from_file(KEYWORDS_FILE_PATH)
+        print(f"🚀 Render Loot Bot Started ({len(initial_kws)} Keywords from {KEYWORDS_FILE_PATH})...")
+        send_alert_safe(
+            f"🚀 बॉट चालू / जागा है!\n"
+            f"• कीवर्ड फ़ाइल: {KEYWORDS_FILE_PATH} ({len(initial_kws)} कीवर्ड्स)\n"
+            f"• Seen रिकॉर्ड फ़ाइल: {SEEN_DEALS_FILE_PATH} ({SEEN_EXPIRY_DAYS} दिन तक दोबारा नहीं डलेगा)\n"
+            f"• हर {BATCH_SIZE} कीवर्ड्स पर बैच रिपोर्ट आएगी।"
+        )
+
+        cycle_no = 0
+        while True:
+            cycle_no += 1
+            try:
+                scan_once()
+            except Exception as cycle_err:
+                tb_short = traceback.format_exc()[-900:]
+                send_alert_safe(
+                    f"❌ चक्र #{cycle_no} में गड़बड़/एरर आया!\n"
+                    f"• वजह: {type(cycle_err).__name__}: {cycle_err}\n"
+                    f"• Trace:\n{tb_short}"
+                )
+                time.sleep(10)
+                continue
+
+            time.sleep(LOOP_DELAY)
+
+    except Exception as fatal_err:
+        tb_fatal = traceback.format_exc()[-900:]
+        send_alert_safe(
+            f"🛑 बॉट वर्कर क्रैश हो गया!\n"
+            f"• वजह: {type(fatal_err).__name__}: {fatal_err}\n"
+            f"• Trace:\n{tb_fatal}"
+        )
+    finally:
+        with worker_lock:
+            worker_started = False
 
 if __name__ == "__main__":
-    t = threading.Thread(target=background_worker)
+    t = threading.Thread(target=background_worker, name="LootWorkerThread")
     t.daemon = True
     t.start()
     run_flask()
