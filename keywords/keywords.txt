@@ -466,3 +466,45 @@
     "Zaveri Pearls", "Accessorize London", "Aldo Bags", "Michael Kors Bags", "Coach Bags",
     "Kate Spade Bags", "Furla", "Longchamp", "Herschel", "JanSport",
     "Eastpak", "Fjallraven Kanken", "North Face Bag", "Columbia Bag", "Wildcraft Bag",
+# --- Fresh High-Value Audio, Speakers & Studio Brands ---
+    "Kef", "Bowers & Wilkins", "Sonos", "Denon", "Marantz",
+    "Yamaha Audio", "Cambridge Audio", "Focal", "McIntosh", "Naim",
+    "Devialet", "Audeze", "Hifiman", "Meze Audio", "Grado",
+    "Epos", "Jamo", "Polk Audio", "Dali", "Monitor Audio",
+    "Wharfedale", "Elac", "Q Acoustics", "SVS", "Genelec",
+    "KRK", "Mackie", "PreSonus", "Focusrite", "Allen & Heath",
+
+    # --- Fresh Gaming, PC Hardware & Tech Brands ---
+    "Alienware", "Asus ROG", "MSI Gaming", "Zowie", "Glorious",
+    "Wooting", "Ducky", "Varmilo", "Leopold", "Apex Pro",
+    "NZXT", "Lian Li", "Fractal Design", "Cooler Master", "Thermaltake",
+    "Be Quiet", "Noctua", "EVGA", "Gigabyte Aorus", "Sapphire",
+    "Western Digital", "Seagate", "Crucial", "Kingston Fury", "XPG",
+    "Elgato", "AverMedia", "Stream Deck", "Loupedeck", "BenQ Zowie",
+
+    # --- Fresh Luxury Perfumes, Fragrances & Grooming Brands ---
+    "Maison Francis Kurkdjian", "Byredo", "Le Labo", "Amouage", "Roja Parfums",
+    "Parfums de Marly", "Nishane", "Xerjoff", "Initio", "Memo Paris",
+    "Diptyque", "Jo Malone", "Penhaligon's", "Acqua di Parma", "Guerlain",
+    "Chanel Perfume", "Dior Perfume", "Yves Saint Laurent", "Givenchy Perfume", "Bvlgari",
+    "Montale", "Mancera", "Lattafa", "Armaf", "Afnan",
+    "Swiss Arabian", "Khadlaj", "Maison Alhambra", "RiiFFS", "Al Haramain",
+    "Panasonic Grooming", "Braun Series", "Philips Norelco", "Babyliss Pro", "Dyson Supersonic",
+
+    # --- Fresh Premium Fashion, Outerwear & Footwear Brands ---
+    "Max Mara", "Weekend Max Mara", "Sandro", "Maje", "Claudie Pierlot",
+    "Reiss", "Whistles", "Karen Millen", "Hobbs", "Phase Eight",
+    "Ted Baker London", "AllSaints", "Belstaff", "Baracuta", "Mackintosh",
+    "Woolrich", "Canada Goose", "Pyrenex", "Moose Knuckles", "ParaJumpers",
+    "Nobis", "Bogner", "Goldbergh", "Descente", "Rossignol",
+    "La Sportiva", "Scarpa", "Lowa", "Hanwag", "Meindl",
+    "Vasque", "Oboz", "Teva", "Chaco", "Keen",
+    "Sanuk", "Olukai", "Sebago", "Sperry", "G.H. Bass",
+
+    # --- Fresh Home Appliances, Kitchen & Smart Living Brands ---
+    "Smeg", "KitchenAid", "Breville", "Miele", "Neff",
+    "Siemens Home", "Gaggenau", "Liebherr", "Sub-Zero", "Wolf",
+    "Viking", "Thermador", "La Marzocco", "Rancilio", "Rocket Espresso",
+    "Fellow", "Hario", "Chemex", "AeroPress", "Baratza",
+    "Vitamix", "Blendtec", "Oster", "Hamilton Beach", "Zojirushi",
+    "Tiger Corporation", "Blueair", "Winix", "IQAir", "Levoit",
