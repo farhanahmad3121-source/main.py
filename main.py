@@ -16,7 +16,7 @@ app = Flask(__name__)
 @app.route("/")
 @app.route("/health")
 def home():
-    return "Multi-Site Loot Bot (Amazon -> Flipkart -> Meesho) Running!"
+    return "Multi-Site Loot Bot (Per-Site Error Breakdown + Isolated Sessions) Running!"
 
 
 def run_flask():
@@ -34,8 +34,8 @@ MIN_DISCOUNT = 90              # 90% या उससे ज़्यादा �
 MAX_PRICE = 100                # ₹100 या उससे कम
 BATCH_SIZE = 50                # हर 50 कीवर्ड के बाद बैच रिपोर्ट
 LOOP_DELAY = 600               # पूरा साइकिल खत्म होने के बाद 10 मिनट का इंतज़ार
-KEYWORD_DELAY = 0.05           # तेज़ मोड (ज़रूरत पड़े तो 0.01 या 0.2 कर सकते हैं)
-SITE_STEP_DELAY = 0.05         # Amazon -> Flipkart -> Meesho के बीच छोटा गैप
+KEYWORD_DELAY = 0.15           # हर कीवर्ड के बाद बेस गैप
+SITE_STEP_DELAY = 0.15         # साइट्स के बीच गैप
 SEEN_EXPIRY_DAYS = 20          # 20 दिन तक वही डील दोबारा नहीं आएगी
 SEEN_EXPIRY_SECONDS = SEEN_EXPIRY_DAYS * 86400
 TELEGRAM_RETRY_DELAY = 2       # Telegram एरर आने पर 2 सेकंड में री-ट्राई
@@ -54,7 +54,7 @@ worker_lock = threading.Lock()
 worker_started = False
 
 
-def make_headers(referer: str = "https://www.amazon.in/") -> dict:
+def make_headers(referer: str) -> dict:
     return {
         "User-Agent": random.choice(USER_AGENTS),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -77,10 +77,7 @@ def load_keywords_from_file(filepath: str = KEYWORDS_FILE_PATH) -> list:
 
         if filepath.lower().endswith(".json"):
             data = json.loads(raw_content)
-            if isinstance(data, list):
-                items = [str(x).strip() for x in data if str(x).strip()]
-            else:
-                items = []
+            items = [str(x).strip() for x in data if str(x).strip()] if isinstance(data, list) else []
         else:
             cleaned_lines = []
             for line in raw_content.splitlines():
@@ -311,16 +308,16 @@ def scrape_amazon_kw(session: requests.Session, kw: str):
     resp = session.get(url, headers=make_headers("https://www.amazon.in/"), timeout=10)
     code = resp.status_code
 
-    if code in (403, 503) or code != 200 or is_captcha_or_block_page(resp.text):
-        return {"status": f"bad_{code}" if code != 200 else "blocked", "count": 0, "reason": "", "deals": []}
+    if code != 200 or is_captcha_or_block_page(resp.text):
+        err_tag = f"HTTP_{code}" if code != 200 else "BLOCK_CAPTCHA"
+        return {"status": "bad", "err_tag": err_tag, "count": 0, "deals": []}
 
     soup = BeautifulSoup(resp.text, "html.parser")
     items = soup.select('div[data-component-type="s-search-result"]')
     count = len(items)
     if count == 0:
-        reason = classify_zero_items_reason(resp.text)
         del soup
-        return {"status": "empty", "count": 0, "reason": reason, "deals": []}
+        return {"status": "empty", "err_tag": "", "count": 0, "deals": []}
 
     deals = []
     for item in items:
@@ -342,10 +339,10 @@ def scrape_amazon_kw(session: requests.Session, kw: str):
 
         sig = f"amz:asin:{asin}" if asin else f"amz:{link.lower()}|{title.lower()[:70]}"
         legacy_sig = f"{link.lower()}|{title.lower()[:70]}"
-        deals.append({"sig": sig, "legacy_sig": legacy_sig, "title": title, "price": price, "discount": discount, "link": link, "free_del": True})
+        deals.append({"sig": sig, "legacy_sig": legacy_sig, "title": title, "price": price, "discount": discount, "link": link})
 
     del soup
-    return {"status": "ok", "count": count, "reason": "", "deals": deals}
+    return {"status": "ok", "err_tag": "", "count": count, "deals": deals}
 
 
 def scrape_flipkart_kw(session: requests.Session, kw: str):
@@ -354,29 +351,25 @@ def scrape_flipkart_kw(session: requests.Session, kw: str):
     resp = session.get(url, headers=make_headers("https://www.flipkart.com/"), timeout=10)
     code = resp.status_code
 
-    if code in (403, 503) or code != 200 or is_captcha_or_block_page(resp.text):
-        return {"status": f"bad_{code}" if code != 200 else "blocked", "count": 0, "reason": "", "deals": []}
+    if code != 200 or is_captcha_or_block_page(resp.text):
+        err_tag = f"HTTP_{code}" if code != 200 else "BLOCK_CAPTCHA"
+        return {"status": "bad", "err_tag": err_tag, "count": 0, "deals": []}
 
     soup = BeautifulSoup(resp.text, "html.parser")
-    # Flipkart सर्च में प्रोडक्ट कार्ड्स अलग-अलग लेआउट में हो सकते हैं
     cards = soup.select("div[data-id]")
     if not cards:
-        cards = [a.parent for a in soup.select("a[href*='/p/']") if a.parent and len(a.parent.get_text(strip=True)) > 15]
-        # डुप्लीकेट पैरेंट हटाएँ
+        raw_parents = [a.parent for a in soup.select("a[href*='/p/']") if a.parent and len(a.parent.get_text(strip=True)) > 15]
         seen_ids = set()
-        unique_cards = []
-        for c in cards:
-            oid = id(c)
-            if oid not in seen_ids:
-                seen_ids.add(oid)
-                unique_cards.append(c)
-        cards = unique_cards
+        cards = []
+        for c in raw_parents:
+            if id(c) not in seen_ids:
+                seen_ids.add(id(c))
+                cards.append(c)
 
     count = len(cards)
     if count == 0:
-        reason = classify_zero_items_reason(resp.text)
         del soup
-        return {"status": "empty", "count": 0, "reason": reason, "deals": []}
+        return {"status": "empty", "err_tag": "", "count": 0, "deals": []}
 
     deals = []
     for card in cards:
@@ -386,14 +379,7 @@ def scrape_flipkart_kw(session: requests.Session, kw: str):
 
         discount = extract_discount_percent(text)
         free_del = has_free_delivery(text)
-
-        # Flipkart पर ₹X के आसपास के प्राइस निकालें
-        prices = []
-        for m_str in re.findall(r"₹\s*[\d,]+", text):
-            val = parse_price_int(m_str)
-            if val is not None and 0 < val <= MAX_PRICE:
-                prices.append(val)
-
+        prices = [v for m_str in re.findall(r"₹\s*[\d,]+", text) if (v := parse_price_int(m_str)) is not None and 0 < v <= MAX_PRICE]
         price = min(prices) if prices else None
         if not ((discount >= MIN_DISCOUNT) and (price is not None) and free_del):
             continue
@@ -420,10 +406,10 @@ def scrape_flipkart_kw(session: requests.Session, kw: str):
             continue
 
         sig = f"fk:{link.lower()}|{title.lower()[:70]}"
-        deals.append({"sig": sig, "legacy_sig": "", "title": title, "price": price, "discount": discount, "link": link, "free_del": True})
+        deals.append({"sig": sig, "legacy_sig": "", "title": title, "price": price, "discount": discount, "link": link})
 
     del soup
-    return {"status": "ok", "count": count, "reason": "", "deals": deals}
+    return {"status": "ok", "err_tag": "", "count": count, "deals": deals}
 
 
 def scrape_meesho_kw(session: requests.Session, kw: str):
@@ -432,8 +418,9 @@ def scrape_meesho_kw(session: requests.Session, kw: str):
     resp = session.get(url, headers=make_headers("https://www.meesho.com/"), timeout=10)
     code = resp.status_code
 
-    if code in (403, 503) or code != 200 or is_captcha_or_block_page(resp.text):
-        return {"status": f"bad_{code}" if code != 200 else "blocked", "count": 0, "reason": "", "deals": []}
+    if code != 200 or is_captcha_or_block_page(resp.text):
+        err_tag = f"HTTP_{code}" if code != 200 else "BLOCK_CAPTCHA"
+        return {"status": "bad", "err_tag": err_tag, "count": 0, "deals": []}
 
     soup = BeautifulSoup(resp.text, "html.parser")
     cards = soup.select("a[href*='/p/']")
@@ -442,9 +429,8 @@ def scrape_meesho_kw(session: requests.Session, kw: str):
 
     count = len(cards)
     if count == 0:
-        reason = classify_zero_items_reason(resp.text)
         del soup
-        return {"status": "empty", "count": 0, "reason": reason, "deals": []}
+        return {"status": "empty", "err_tag": "", "count": 0, "deals": []}
 
     deals = []
     for card in cards:
@@ -455,13 +441,7 @@ def scrape_meesho_kw(session: requests.Session, kw: str):
 
         discount = extract_discount_percent(text)
         free_del = has_free_delivery(text)
-
-        prices = []
-        for m_str in re.findall(r"₹\s*[\d,]+", text):
-            val = parse_price_int(m_str)
-            if val is not None and 0 < val <= MAX_PRICE:
-                prices.append(val)
-
+        prices = [v for m_str in re.findall(r"₹\s*[\d,]+", text) if (v := parse_price_int(m_str)) is not None and 0 < v <= MAX_PRICE]
         price = min(prices) if prices else None
         if not ((discount >= MIN_DISCOUNT) and (price is not None) and free_del):
             continue
@@ -470,7 +450,6 @@ def scrape_meesho_kw(session: requests.Session, kw: str):
         if not href:
             a_el = container.select_one("a[href*='/p/']")
             href = a_el.get("href", "").strip() if a_el else ""
-
         if not href:
             continue
 
@@ -486,10 +465,25 @@ def scrape_meesho_kw(session: requests.Session, kw: str):
             continue
 
         sig = f"meesho:{link.lower()}|{title.lower()[:70]}"
-        deals.append({"sig": sig, "legacy_sig": "", "title": title, "price": price, "discount": discount, "link": link, "free_del": True})
+        deals.append({"sig": sig, "legacy_sig": "", "title": title, "price": price, "discount": discount, "link": link})
 
     del soup
-    return {"status": "ok", "count": count, "reason": "", "deals": deals}
+    return {"status": "ok", "err_tag": "", "count": count, "deals": deals}
+
+
+def format_bad_streak_breakdown(bad_events: list) -> str:
+    """लगातार खराब रिक्वेस्ट्स में किस साइट में कितने एरर आए, उसका हिसाब बनाता है।"""
+    counts = {"Amazon": 0, "Flipkart": 0, "Meesho": 0}
+    details = []
+    for ev in bad_events:
+        site = ev["site"]
+        tag = ev["tag"]
+        kw = ev["kw"]
+        counts[site] = counts.get(site, 0) + 1
+        details.append(f"• {site} ({tag}) — {kw}")
+
+    summary = f"AMZ: {counts['Amazon']} | FK: {counts['Flipkart']} | Meesho: {counts['Meesho']}"
+    return summary, "\n".join(details[-8:])
 
 
 def build_batch_report(
@@ -509,9 +503,8 @@ def build_batch_report(
     lines = [
         f"📦 Batch Report ({batch_num}/{total_batches}) — Keywords #{start_idx+1} to {end_idx}",
         f"• आइटम काउंट: AMZ {total_amz_items} | FK {total_fk_items} | Meesho {total_meesho_items} | नई लूट: {batch_deals}",
-        f"• OK/Empty/Bad -> AMZ: {batch_stats['amz_ok']}/{batch_len} (0:{batch_stats['amz_empty']}, Bad:{batch_stats['amz_bad']}) | "
-        f"FK: {batch_stats['fk_ok']}/{batch_len} (0:{batch_stats['fk_empty']}, Bad:{batch_stats['fk_bad']}) | "
-        f"Meesho: {batch_stats['meesho_ok']}/{batch_len} (0:{batch_stats['meesho_empty']}, Bad:{batch_stats['meesho_bad']})",
+        f"• एरर/ब्लॉक ब्रेकडाउन -> AMZ: {batch_stats['amz_bad']} | FK: {batch_stats['fk_bad']} | Meesho: {batch_stats['meesho_bad']}",
+        f"• 0 आइटम -> AMZ: {batch_stats['amz_empty']} | FK: {batch_stats['fk_empty']} | Meesho: {batch_stats['meesho_empty']}",
         "\n📋 हर नाम पर पेज आइटम (AMZ / FK / Meesho):",
     ]
 
@@ -541,9 +534,14 @@ def scan_once():
 
     total_batches = (total_kw + BATCH_SIZE - 1) // BATCH_SIZE
     overall_deals = 0
-    consecutive_bad = 0
+    bad_events_streak = []
+    slowdown_remaining = 0
 
-    session = requests.Session()
+    sessions = {
+        "amz": requests.Session(),
+        "fk": requests.Session(),
+        "meesho": requests.Session(),
+    }
     sites = [
         ("amz", "Amazon", scrape_amazon_kw),
         ("fk", "Flipkart", scrape_flipkart_kw),
@@ -566,11 +564,11 @@ def scan_once():
 
             for kw in batch_kws:
                 row = {"kw": kw, "amz": 0, "fk": 0, "meesho": 0, "deals": 0}
-                kw_had_bad = False
+                kw_bad_list = []
 
                 for code_key, site_label, scraper_fn in sites:
                     try:
-                        res = scraper_fn(session, kw)
+                        res = scraper_fn(sessions[code_key], kw)
                         status = res["status"]
                         cnt = res["count"]
                         row[code_key] = cnt
@@ -601,34 +599,43 @@ def scan_once():
                             b_stats[f"{code_key}_empty"] += 1
                         else:
                             b_stats[f"{code_key}_bad"] += 1
-                            kw_had_bad = True
-                            print(f"[{site_label} {status}] {kw}")
+                            kw_bad_list.append({"site": site_label, "tag": res["err_tag"], "kw": kw})
+                            print(f"[{site_label} {res['err_tag']}] {kw}")
                     except Exception as e:
                         b_stats[f"{code_key}_bad"] += 1
-                        kw_had_bad = True
-                        print(f"[{site_label} Error {kw}]: {e}")
+                        err_name = type(e).__name__
+                        kw_bad_list.append({"site": site_label, "tag": err_name, "kw": kw})
+                        print(f"[{site_label} {err_name} {kw}]: {e}")
 
-                    if SITE_STEP_DELAY > 0:
-                        time.sleep(SITE_STEP_DELAY)
+                    step_gap = SITE_STEP_DELAY * (3.0 if slowdown_remaining > 0 else 1.0)
+                    if step_gap > 0:
+                        time.sleep(step_gap)
 
                 b_kw_rows.append(row)
                 print(f"[KW Done] {kw} -> AMZ:{row['amz']} | FK:{row['fk']} | Meesho:{row['meesho']}")
 
-                if kw_had_bad:
-                    consecutive_bad += 1
-                    if consecutive_bad >= MAX_CONSECUTIVE_BAD:
+                if kw_bad_list:
+                    bad_events_streak.extend(kw_bad_list)
+                    if len(bad_events_streak) >= MAX_CONSECUTIVE_BAD:
+                        site_summary, recent_lines = format_bad_streak_breakdown(bad_events_streak)
                         send_alert_safe(
                             f"⏸️ स्मार्ट ब्रेक सक्रिय!\n"
-                            f"• लगातार {consecutive_bad} बार ब्लॉक/एरर आया।\n"
-                            f"• बॉट {COOLDOWN_SECONDS // 60} मिनट रुकेगा।"
+                            f"• लगातार {len(bad_events_streak)} ब्लॉक/एरर आए।\n"
+                            f"• किस साइट में कितने एरर: {site_summary}\n"
+                            f"• हाल के एरर:\n{recent_lines}\n"
+                            f"• बॉट {COOLDOWN_SECONDS // 60} मिनट रुकेगा, फिर धीमी रफ़्तार से शुरू होगा।"
                         )
                         time.sleep(COOLDOWN_SECONDS)
-                        consecutive_bad = 0
+                        bad_events_streak = []
+                        slowdown_remaining = 25
                 else:
-                    consecutive_bad = 0
+                    bad_events_streak = []
+                    if slowdown_remaining > 0:
+                        slowdown_remaining -= 1
 
-                if KEYWORD_DELAY > 0:
-                    time.sleep(KEYWORD_DELAY)
+                kw_gap = KEYWORD_DELAY * (3.0 if slowdown_remaining > 0 else 1.0)
+                if kw_gap > 0:
+                    time.sleep(kw_gap)
 
             overall_deals += b_deals
             batch_msg = build_batch_report(
@@ -644,7 +651,8 @@ def scan_once():
             gc.collect()
 
     finally:
-        session.close()
+        for s in sessions.values():
+            s.close()
         gc.collect()
 
     send_alert_safe(
@@ -666,7 +674,7 @@ def background_worker():
         print(f"Multi-Site Loot Bot Started ({len(initial_kws)} Keywords)...")
         send_alert_safe(
             f"🤖 Multi-Site बॉट चालू हो गया!\n"
-            f"• क्रम: पहले Amazon → फिर Flipkart → फिर Meesho\n"
+            f"• क्रम: Amazon → Flipkart → Meesho (अलग-अलग Session)\n"
             f"• कीवर्ड्स: {len(initial_kws)} ({KEYWORDS_FILE_PATH})"
         )
 
