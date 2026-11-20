@@ -1,4 +1,40 @@
- "Smartwatch", "Wireless Earbuds", "Active Noise Cancelling Headphones", "Bluetooth Party Speaker", "Soundbar",
+ "OnePlus", "Realme", "Xiaomi", "Redmi", "Poco",
+    "Vivo", "Oppo", "iQOO", "Motorola", "Nothing",
+    "CMF by Nothing", "Google Pixel", "Lenovo", "HP", "Dell",
+    "Acer", "Asus", "MSI", "LG", "Panasonic",
+    "Whirlpool", "Voltas", "Blue Star", "Daikin", "Haier",
+    "Godrej Appliances", "IFB", "Kent", "Aquaguard", "Eureka Forbes",
+    "Atomberg", "Syska", "Wipro Smart", "Philips Hue", "Qubo",
+    "CP Plus", "Ezviz", "Tapo", "Zebronics", "Ptron",
+    "Boult Audio", "Crossbeats", "Hammer", "Wings", "Mivi",
+
+    # --- Big Home Furnishing, Mattress, Bedsheet & Decor Companies ---
+    "Bombay Dyeing", "Spaces", "Portico New York", "Trident", "D'Decor",
+    "Sleepwell", "Kurlon", "Wakefit", "The Sleep Company", "Emma Mattress",
+    "Duroflex", "Peps", "Solimo", "Home Centre", "IKEA",
+    "Chumbak Home", "Nestasia", "Vaya", "Borosil Hydra", "Tupperware",
+
+    # --- Big Premium Perfume, Grooming & Personal Care Companies ---
+    "Bella Vita Luxury", "Villain", "Beardo", "The Man Company", "Ustraa",
+    "Bombay Shaving Company", "mCaffeine", "Wild Stone", "Fogg", "Denver",
+    "Engage", "Skinn by Titan", "Park Avenue Perfume", "Yardley London", "Brut",
+    "Old Spice", "Nautica Voyage", "Jaguar Perfume", "Mercedes-Benz Perfume", "Montblanc Perfume",
+    "Gillette", "Syska Grooming", "Nova", "Kemei", "Havells Grooming",
+
+    # --- Big Sports, Fitness, Cycles & Outdoor Companies ---
+    "Hero Cycles", "Firefox", "Montra", "Btwin Cycles", "Hercules",
+    "Urban Terrain", "Lifelong", "Cockatoo", "PowerMax Fitness", "Durafit",
+    "Kore", "Aurion", "Strauss", "Nivia Sports", "Cosco Sports",
+    "Spalding", "Molten", "Slazenger", "Speedo Swim", "Zoggs",
+
+    # --- Big Indian Fashion, Ethnic, Eyewear & Jewellery Companies ---
+    "FabAlley", "Indya", "Kalki Fashion", "Biba Ethnic", "Aurelia Ethnic",
+    "W Ethnic", "Melange", "Global Desi", "Manyavar Menswear", "Kora by Nilesh Mitesh",
+    "Peter England Casuals", "Louis Philippe Sport", "Van Heusen Sport", "Allen Solly Tribe", "Arrow",
+    "Izod", "Nautica India", "Gap India", "Uniqlo India", "Zara India",
+    "H&M India", "Marks & Spencer India", "Levi's India", "Lee Cooper India", "Woodland India",
+
+"Smartwatch", "Wireless Earbuds", "Active Noise Cancelling Headphones", "Bluetooth Party Speaker", "Soundbar",
     "Action Camera", "Gimbal Stabilizer", "Mechanical Keyboard", "Wireless Gaming Mouse", "Gaming Headset",
     "Air Purifier", "Robot Vacuum", "Cordless Stick Vacuum", "Espresso Coffee Maker", "Air Fryer",
     "Electric Kettle Pro", "Hair Dryer Brush", "Hair Straightener", "Electric Shaver", "Electric Toothbrush",
