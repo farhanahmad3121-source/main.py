@@ -7,6 +7,8 @@ import random
 import threading
 import traceback
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 from flask import Flask
 
@@ -16,7 +18,7 @@ app = Flask(__name__)
 @app.route("/")
 @app.route("/health")
 def home():
-    return "Multi-Site Loot Bot (Per-Site Error Breakdown + Isolated Sessions) Running!"
+    return "Advanced Multi-Site Loot Bot Running!"
 
 
 def run_flask():
@@ -30,23 +32,31 @@ TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 KEYWORDS_FILE_PATH = os.environ.get("KEYWORDS_FILE", "keywords/keywords.txt")
 SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
 
-MIN_DISCOUNT = 90              # 90% या उससे ज़्यादा ऑफ़
-MAX_PRICE = 100                # ₹100 या उससे कम
-BATCH_SIZE = 50                # हर 50 कीवर्ड के बाद बैच रिपोर्ट
-LOOP_DELAY = 600               # पूरा साइकिल खत्म होने के बाद 10 मिनट का इंतज़ार
-KEYWORD_DELAY = 0.15           # हर कीवर्ड के बाद बेस गैप
-SITE_STEP_DELAY = 0.15         # साइट्स के बीच गैप
-SEEN_EXPIRY_DAYS = 20          # 20 दिन तक वही डील दोबारा नहीं आएगी
+MIN_DISCOUNT = 90                  # 90% या उससे ज़्यादा ऑफ़
+MAX_PRICE = 100                    # ₹100 या उससे कम
+BATCH_SIZE = 50                    # हर 50 कीवर्ड के बाद बैच रिपोर्ट
+LOOP_DELAY = 600                   # पूरा साइकिल खत्म होने के बाद 10 मिनट का इंतज़ार
+SEEN_EXPIRY_DAYS = 20              # 20 दिन तक वही डील दोबारा नहीं आएगी
 SEEN_EXPIRY_SECONDS = SEEN_EXPIRY_DAYS * 86400
-TELEGRAM_RETRY_DELAY = 2       # Telegram एरर आने पर 2 सेकंड में री-ट्राई
-MAX_CONSECUTIVE_BAD = 5        # लगातार 5 ब्लॉक/एरर पर स्मार्ट ब्रेक
-COOLDOWN_SECONDS = 900         # 15 मिनट का कूल-डाउन ब्रेक
+TELEGRAM_RETRY_DELAY = 2           # Telegram एरर आने पर री-ट्राई
+MAX_CONSECUTIVE_BAD = 5            # लगातार 5 ब्लॉक/एरर पर स्मार्ट ब्रेक
+COOLDOWN_SECONDS = 900             # 15 मिनट का कूल-डाउन ब्रेक
+SITE_SKIP_AFTER_BADS = 6           # किसी एक साइट पर लगातार 6 एरर आएँ तो वह साइट अस्थायी रूप से स्किप
+SITE_SKIP_DURATION = 600           # स्किप हुई साइट 10 मिनट बाद फिर ट्राई होगी
+
+# रैंडम गैप रेंज (min_sec, max_sec) ताकि रिक्वेस्ट्स एक ही रिदम में न जाएं
+SITE_DELAY_RANGES = {
+    "amz": (0.15, 0.45),
+    "fk": (0.90, 2.20),
+    "meesho": (0.90, 2.20),
+}
+KEYWORD_DELAY_RANGE = (0.25, 0.75)
 
 USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
-    "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0",
-    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
 ]
 
 file_io_lock = threading.Lock()
@@ -54,12 +64,36 @@ worker_lock = threading.Lock()
 worker_started = False
 
 
+def sleep_jitter(delay_range: tuple, multiplier: float = 1.0):
+    low, high = delay_range
+    sec = random.uniform(low, high) * multiplier
+    if sec > 0:
+        time.sleep(sec)
+
+
+def build_resilient_session() -> requests.Session:
+    sess = requests.Session()
+    retry = Retry(
+        total=2,
+        backoff_factor=0.4,
+        status_forcelist=[429, 502, 503, 504],
+        allowed_methods=["GET"],
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=10)
+    sess.mount("https://", adapter)
+    sess.mount("http://", adapter)
+    return sess
+
+
 def make_headers(referer: str) -> dict:
     return {
         "User-Agent": random.choice(USER_AGENTS),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "en-IN,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
         "Referer": referer,
+        "Upgrade-Insecure-Requests": "1",
+        "Connection": "keep-alive",
     }
 
 
@@ -192,24 +226,10 @@ def is_captcha_or_block_page(html_text: str) -> bool:
         "api-services-support@amazon.com",
         "request was blocked",
         "access denied",
+        "g-recaptcha",
+        "h-captcha",
     ]
     return any(p in t for p in block_phrases)
-
-
-def classify_zero_items_reason(html_text: str) -> str:
-    t = html_text.lower()
-    no_res_phrases = [
-        "no results for",
-        "0 results for",
-        "did not match any products",
-        "try checking your spelling",
-        "no products found",
-    ]
-    if any(p in t for p in no_res_phrases):
-        return "कोई रिजल्ट नहीं"
-    if "something went wrong" in t or "sorry!" in t:
-        return "एरर पेज"
-    return "खाली/अलग लेआउट"
 
 
 def parse_price_int(raw_str: str):
@@ -305,7 +325,7 @@ def extract_amazon_product_info(item):
 def scrape_amazon_kw(session: requests.Session, kw: str):
     query = kw.strip().replace(" ", "+")
     url = f"https://www.amazon.in/s?k={query}"
-    resp = session.get(url, headers=make_headers("https://www.amazon.in/"), timeout=10)
+    resp = session.get(url, headers=make_headers("https://www.amazon.in/"), timeout=12)
     code = resp.status_code
 
     if code != 200 or is_captcha_or_block_page(resp.text):
@@ -348,7 +368,7 @@ def scrape_amazon_kw(session: requests.Session, kw: str):
 def scrape_flipkart_kw(session: requests.Session, kw: str):
     query = requests.utils.quote(kw.strip())
     url = f"https://www.flipkart.com/search?q={query}"
-    resp = session.get(url, headers=make_headers("https://www.flipkart.com/"), timeout=10)
+    resp = session.get(url, headers=make_headers("https://www.flipkart.com/"), timeout=12)
     code = resp.status_code
 
     if code != 200 or is_captcha_or_block_page(resp.text):
@@ -415,7 +435,7 @@ def scrape_flipkart_kw(session: requests.Session, kw: str):
 def scrape_meesho_kw(session: requests.Session, kw: str):
     query = requests.utils.quote(kw.strip())
     url = f"https://www.meesho.com/search?q={query}"
-    resp = session.get(url, headers=make_headers("https://www.meesho.com/"), timeout=10)
+    resp = session.get(url, headers=make_headers("https://www.meesho.com/"), timeout=12)
     code = resp.status_code
 
     if code != 200 or is_captcha_or_block_page(resp.text):
@@ -471,8 +491,7 @@ def scrape_meesho_kw(session: requests.Session, kw: str):
     return {"status": "ok", "err_tag": "", "count": count, "deals": deals}
 
 
-def format_bad_streak_breakdown(bad_events: list) -> str:
-    """लगातार खराब रिक्वेस्ट्स में किस साइट में कितने एरर आए, उसका हिसाब बनाता है।"""
+def format_bad_streak_breakdown(bad_events: list):
     counts = {"Amazon": 0, "Flipkart": 0, "Meesho": 0}
     details = []
     for ev in bad_events:
@@ -495,16 +514,15 @@ def build_batch_report(
     batch_deals: int,
     batch_kw_rows: list,
 ) -> str:
-    batch_len = end_idx - start_idx
     total_amz_items = sum(r["amz"] for r in batch_kw_rows)
     total_fk_items = sum(r["fk"] for r in batch_kw_rows)
     total_meesho_items = sum(r["meesho"] for r in batch_kw_rows)
 
     lines = [
         f"📦 Batch Report ({batch_num}/{total_batches}) — Keywords #{start_idx+1} to {end_idx}",
-        f"• आइटम काउंट: AMZ {total_amz_items} | FK {total_fk_items} | Meesho {total_meesho_items} | नई लूट: {batch_deals}",
-        f"• एरर/ब्लॉक ब्रेकडाउन -> AMZ: {batch_stats['amz_bad']} | FK: {batch_stats['fk_bad']} | Meesho: {batch_stats['meesho_bad']}",
-        f"• 0 आइटम -> AMZ: {batch_stats['amz_empty']} | FK: {batch_stats['fk_empty']} | Meesho: {batch_stats['meesho_empty']}",
+        f"• पेज आइटम: AMZ {total_amz_items} | FK {total_fk_items} | Meesho {total_meesho_items} | नई लूट: {batch_deals}",
+        f"• एरर/ब्लॉक: AMZ {batch_stats['amz_bad']} | FK {batch_stats['fk_bad']} | Meesho {batch_stats['meesho_bad']}",
+        f"• 0 आइटम: AMZ {batch_stats['amz_empty']} | FK {batch_stats['fk_empty']} | Meesho {batch_stats['meesho_empty']}",
         "\n📋 हर नाम पर पेज आइटम (AMZ / FK / Meesho):",
     ]
 
@@ -537,10 +555,13 @@ def scan_once():
     bad_events_streak = []
     slowdown_remaining = 0
 
+    site_bad_streak = {"amz": 0, "fk": 0, "meesho": 0}
+    site_skip_until = {"amz": 0.0, "fk": 0.0, "meesho": 0.0}
+
     sessions = {
-        "amz": requests.Session(),
-        "fk": requests.Session(),
-        "meesho": requests.Session(),
+        "amz": build_resilient_session(),
+        "fk": build_resilient_session(),
+        "meesho": build_resilient_session(),
     }
     sites = [
         ("amz", "Amazon", scrape_amazon_kw),
@@ -567,6 +588,10 @@ def scan_once():
                 kw_bad_list = []
 
                 for code_key, site_label, scraper_fn in sites:
+                    now_ts = time.time()
+                    if now_ts < site_skip_until[code_key]:
+                        continue
+
                     try:
                         res = scraper_fn(sessions[code_key], kw)
                         status = res["status"]
@@ -574,6 +599,7 @@ def scan_once():
                         row[code_key] = cnt
 
                         if status == "ok":
+                            site_bad_streak[code_key] = 0
                             b_stats[f"{code_key}_ok"] += 1
                             for d in res["deals"]:
                                 sig = d["sig"]
@@ -595,21 +621,37 @@ def scan_once():
                                     row["deals"] += 1
                                     time.sleep(0.2)
                         elif status == "empty":
+                            site_bad_streak[code_key] = 0
                             b_stats[f"{code_key}_ok"] += 1
                             b_stats[f"{code_key}_empty"] += 1
                         else:
                             b_stats[f"{code_key}_bad"] += 1
+                            site_bad_streak[code_key] += 1
                             kw_bad_list.append({"site": site_label, "tag": res["err_tag"], "kw": kw})
                             print(f"[{site_label} {res['err_tag']}] {kw}")
+
+                            # लगातार 2 एरर आने पर उस साइट का सेशन फ्रेश करें
+                            if site_bad_streak[code_key] % 2 == 0:
+                                sessions[code_key].close()
+                                sessions[code_key] = build_resilient_session()
+
+                            if site_bad_streak[code_key] >= SITE_SKIP_AFTER_BADS:
+                                site_skip_until[code_key] = time.time() + SITE_SKIP_DURATION
+                                site_bad_streak[code_key] = 0
+                                send_alert_safe(
+                                    f"⏭️ {site_label} अस्थायी रूप से स्किप!\n"
+                                    f"• {site_label} पर लगातार {SITE_SKIP_AFTER_BADS} एरर आए।\n"
+                                    f"• बाकी साइट्स चलती रहेंगी; {site_label} {SITE_SKIP_DURATION // 60} मिनट बाद फिर चेक होगा।"
+                                )
                     except Exception as e:
                         b_stats[f"{code_key}_bad"] += 1
+                        site_bad_streak[code_key] += 1
                         err_name = type(e).__name__
                         kw_bad_list.append({"site": site_label, "tag": err_name, "kw": kw})
                         print(f"[{site_label} {err_name} {kw}]: {e}")
 
-                    step_gap = SITE_STEP_DELAY * (3.0 if slowdown_remaining > 0 else 1.0)
-                    if step_gap > 0:
-                        time.sleep(step_gap)
+                    mult = 2.5 if slowdown_remaining > 0 else 1.0
+                    sleep_jitter(SITE_DELAY_RANGES.get(code_key, (0.2, 0.5)), mult)
 
                 b_kw_rows.append(row)
                 print(f"[KW Done] {kw} -> AMZ:{row['amz']} | FK:{row['fk']} | Meesho:{row['meesho']}")
@@ -623,19 +665,18 @@ def scan_once():
                             f"• लगातार {len(bad_events_streak)} ब्लॉक/एरर आए।\n"
                             f"• किस साइट में कितने एरर: {site_summary}\n"
                             f"• हाल के एरर:\n{recent_lines}\n"
-                            f"• बॉट {COOLDOWN_SECONDS // 60} मिनट रुकेगा, फिर धीमी रफ़्तार से शुरू होगा।"
+                            f"• बॉट {COOLDOWN_SECONDS // 60} मिनट रुकेगा, फिर संभलकर चलेगा।"
                         )
                         time.sleep(COOLDOWN_SECONDS)
                         bad_events_streak = []
-                        slowdown_remaining = 25
+                        slowdown_remaining = 30
                 else:
                     bad_events_streak = []
                     if slowdown_remaining > 0:
                         slowdown_remaining -= 1
 
-                kw_gap = KEYWORD_DELAY * (3.0 if slowdown_remaining > 0 else 1.0)
-                if kw_gap > 0:
-                    time.sleep(kw_gap)
+                mult = 2.5 if slowdown_remaining > 0 else 1.0
+                sleep_jitter(KEYWORD_DELAY_RANGE, mult)
 
             overall_deals += b_deals
             batch_msg = build_batch_report(
@@ -671,10 +712,10 @@ def background_worker():
 
     try:
         initial_kws = load_keywords_from_file(KEYWORDS_FILE_PATH)
-        print(f"Multi-Site Loot Bot Started ({len(initial_kws)} Keywords)...")
+        print(f"Advanced Multi-Site Loot Bot Started ({len(initial_kws)} Keywords)...")
         send_alert_safe(
-            f"🤖 Multi-Site बॉट चालू हो गया!\n"
-            f"• क्रम: Amazon → Flipkart → Meesho (अलग-अलग Session)\n"
+            f"🤖 Advanced Multi-Site बॉट चालू हो गया!\n"
+            f"• साइट्स: Amazon, Flipkart, Meesho (Jitter + Session Refresh + Auto-Skip)\n"
             f"• कीवर्ड्स: {len(initial_kws)} ({KEYWORDS_FILE_PATH})"
         )
 
