@@ -1,3 +1,86 @@
+"Luminous", "Microtek", "Exide", "Amaron", "Sukam",
+"Waaree", "Adani Solar", "Vikram Solar", "Tata Power Solar", "Enphase",
+"SolarEdge", "Victron Energy", "EcoFlow", "Jackery", "Goal Zero",
+"Bluetti", "Ring", "Arlo", "Ubiquiti UniFi", "August Home",
+"Schlage", "Kwikset", "Level Lock", "Sesame", "Nuki",
+"Honeywell", "Schneider Electric", "ABB", "Siemens", "Legrand",
+"Lutron Caseta", "Savaria", "Stannah", "Thyssenkrupp", "Kone",
+
+# --- Pro Audio, DJ, Studio Instruments & Stage Gear Brands ---
+"Roland", "Korg", "Nord Keyboards", "Arturia", "Novation",
+"Akai Professional", "Pioneer DJ", "AlphaTheta", "Denon DJ", "Allen&Heath",
+"Soundcraft", "Mackie Pro", "QSC", "Electro-Voice", "JBL Professional",
+"Neumann", "DPA Microphones", "Sennheiser Pro", "Beyerdynamic", "Rode",
+"Zoom", "Tascam", "Universal Audio", "Apogee", "RME",
+"Antelope Audio", "SSL", "Solid State Logic", "Avid", "Native Instruments",
+"Elektron", "Teenage Engineering", "Moog", "Sequential", "Oberheim",
+"Dave Smith", "Mutable Instruments", "Strymon", "Eventide", "Chase Bliss",
+"Walrus Audio", "EarthQuaker Devices", "JHS Pedals", "Boss Pedals", "Line 6",
+"Neural DSP", "Kemper", "Fractal Audio", "Mesa Boogie", "Orange Amps",
+"Marshall Amps", "Vox", "Blackstar", "Laney", "Hughes & Kettner",
+
+# --- Golf, Cycling, E-Bikes, Archery & Pro Sports Brands ---
+"Titleist", "TaylorMade", "Callaway", "Ping", "Cobra Golf",
+"Mizuno Golf", "Cleveland Golf", "Srixon", "Scotty Cameron", "PXG",
+"Specialized", "Trek", "Cannondale", "Giant", "Scott Bikes",
+"Santa Cruz Bicycles", "Canyon", "Cervelo", "Pinarello", "Bianchi",
+"Colnago", "BMC", "Cube Bikes", "Focus Bikes", "Merida",
+"Marin Bikes", "Kona Bikes", "Yeti Cycles", "Pivot Cycles", "Evil Bikes",
+"Ibis Cycles", "Intense Cycles", "Norco", "GT Bicycles", "Mongoose",
+"Rad Power Bikes", "Lectric eBikes", "VanMoof", "Cowboy", "Super73",
+"Tern Bicycles", "Brompton", "Dahon", "Wahoo Fitness", "Stages Cycling",
+"4iiii", "Saris", "Tacx", "Elite Cycling", "Zipp",
+"ENVE", "Roval", "DT Swiss", "Chris King", "Hope Technology",
+"Magura", "Shimano", "SRAM", "Campagnolo", "Fox Racing Shox",
+"RockShox", "Ohlins", "Marzocchi", "Cane Creek", "Thomson",
+
+# --- Ergonomic Office, Luxury Furniture & Architectural Brands ---
+"Herman Miller", "Steelcase", "Haworth", "Knoll", "Vitra",
+"Humanscale", "FlexiSpot", "Autonomous", "Secretlab", "Noblechairs",
+"DXRacer", "Maxnomic", "Fritz Hansen", "Kartell", "Cassina",
+"B&B Italia", "Poliform", "Minotti", "Roche Bobois", "Ligne Roset",
+"BoConcept", "Calligaris", "Natuzzi", "Stressless", "Ekornes",
+"Tempur", "Tempur-Pedic", "Hastens", "Vispring", "Serta",
+"Simmons", "Beautyrest", "Saatva", "Purple", "Casper",
+
+# --- Baby Gear, Strollers, Car Seats & Kids Premium Brands ---
+"Bugaboo", "UPPAbaby", "Silver Cross", "Nuna", "Cybex",
+"Recaro Kids", "Britax", "Maxi-Cosi", "Peg Perego", "Inglesina",
+"Stokke", "Babyzen", "Thule Urban Glide", "BOB Gear", "Joie",
+"Graco", "Evenflo", "Britax Romer", "BeSafe", "Axkid",
+"Doona", "Orbit Baby", "4moms", "Owlet", "Nanit",
+"SNOO", "Happiest Baby", "Skip Hop", "Munchkin", "Tommee Tippee",
+"Philips Avent", "Dr. Brown's", "Medela", "Spectra Baby", "Elvie",
+
+# --- Pro Photography, Cinema, Lighting & Broadcast Brands ---
+"ARRI", "Sony Cine", "Canon Cinema", "RED", "Panavision",
+"Cooke Optics", "Zeiss Cinema", "Angenieux", "Schneider Cine", "Laowa",
+"Viltrox", "Meike", "7Artisans", "TTArtisan", "Sirui",
+"SmallRig", "Tilta", "Wooden Camera", "Shape", "Teradek",
+"Hollyland", "DJI Ronin", "Zhiyun", "Freefly", "Sachtler",
+"Miller Tripods", "Gitzo", "Manfrotto", "Benro", "Sirui Tripods",
+"Aputure", "Godox", "Nanlite", "Profoto", "Broncolor",
+"Elinchrom", "Westcott", "Matthews Studio", "Kino Flo", "Litepanels",
+
+# --- Heavy Auto, Off-Road, Marine, Aviation & Industrial Gear ---
+"ARB", "Warn", "Smittybilt", "Old Man Emu", "Bilstein",
+"King Shocks", "Icon Vehicle Dynamics", "Method Race Wheels", "Fuel Off-Road", "BFGoodrich",
+"Cooper Tires", "Toyo Tires", "Nitto Tire", "Falken", "Pirelli",
+"Continental Tires", "Goodyear", "Hankook", "Yokohama", "Maxxis",
+"Garmin Marine", "Simrad", "Lowrance", "Raymarine", "Humminbird",
+"Minn Kota", "MotorGuide", "Furuno", "B&G Marine", "JL Audio",
+"Kicker", "Rockford Fosgate", "Alpine", "Kenwood", "Clarion",
+"Hertz Audio", "Audison", "Morel", "Focal Car Audio", "Brax",
+
+# --- Luxury Luggage, Leather Goods, Pens & Collector Brands ---
+"Louis Vuitton Luggage", "Goyard", "Moynat", "Valextra", "Delvaux",
+"Moreau Paris", "Loewe Leather", "Dunhill", "S.T. Dupont", "Cartier Pens",
+"Montegrappa", "Visconti", "Pelikan", "Sailor Fountain Pens", "Platinum Pen",
+"Pilot Namiki", "Yard-O-Led", "Caran d'Ache", "Graf von Faber-Castell", "Onoto",
+"Breguet Collector", "Jaquet Droz", "F.P. Journe", "Richard Mille", "Greubel Forsey",
+"H. Moser & Cie.", "De Bethune", "MB&F", "Urwerk", "Roger Dubuis",
+"Girard-Perregaux", "Ulysse Nardin", "Bovet", "Glashutte Original", "A. Lange & Sohne"
+
 "Hisense", "TCL", "Vu", "Lloyd", "Carrier",
 "Hitachi", "O General", "Mitsubishi Electric", "Bluestar", "Kelvinator",
 "Sharp", "Toshiba", "JVC", "Sansui", "Thomson",
