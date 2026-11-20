@@ -1,3 +1,38 @@
+"Aga Rangemaster", "Viking Range", "JennAir", "Dacor", "Thermador Home",
+"BlueStar Kitchen", "Falmec", "Elica", "Faber Hoods", "Kaff",
+"Hindware Italian Collection", "Parryware", "Kohler", "Grohe", "Hansgrohe",
+"Duravit", "Villeroy & Boch", "Toto", "Roca", "American Standard",
+"Boffi", "Molteni&C", "Flos", "Artemide", "Louis Poulsen",
+"Tom Dixon", "Bang & Olufsen Home", "Sonance", "Bowers Custom", "McIntosh Home",
+
+# --- Brand New High-Value Tech, Cinema, Audio & Pro Gear Brands ---
+"Phase One", "Hasselblad Pro", "ARRI Alexa", "RED Komodo", "Sony FX",
+"Canon EOS C", "Blackmagic URSA", "Atomos", "SmallHD", "Teradek Bolt",
+"Lectrosonics", "Wisycom", "Sound Devices", "Millennia", "Neve",
+"API Audio", "Chandler Limited", "Empirical Labs", "Grace Design", "Metric Halo",
+"Prism Sound", "Crane Song", "Dangerous Music", "Burl Audio", "Lynx Studio",
+"Barco", "Christie", "Optoma", "ViewSonic Pro", "Epson Pro Cinema",
+"BenQ CinePrime", "LG CineBeam", "Hisense Laser TV", "Formovie", "XGIMI",
+
+# --- Brand New High-Value Sports, Golf, Water & Adventure Brands ---
+"Scotty Cameron Putters", "Bettinardi", "Miura Golf", "Honma Golf", "Parsons Xtreme",
+"Vessel Golf", "Jones Sports", "Sun Mountain", "Clicgear", "Bushnell Golf",
+"Garmin Approach", "SkyTrak", "TrackMan", "FlightScope", "Rapsodo",
+"Hobie", "Caymas Boats", "Boston Whaler", "Grady-White", "Ranger Boats",
+"MasterCraft", "Malibu Boats", "Sea-Doo", "Yamaha WaveRunner", "Kawasaki Jet Ski",
+"Simms Fishing", "Orvis", "Hardy Fishing", "Sage Fly Fish", "Winston Rods",
+"Abel Reels", "Ross Reels", "Patagonia Fly", "Grundens", "Mustang Survival",
+
+# --- Brand New High-Value Fashion, Watches, Luggage & Lifestyle Brands ---
+"Berluti Bespoke", "Kiton Napoli", "Attolini", "Cesare Attolini", "Rubinacci",
+"Charvet", "Sulka", "Turnbull & Asser", "Drake's", "Anderson & Sheppard",
+"Gieves & Hawkes", "Huntsman", "Henry Poole", "Edward Sexton", "Thom Sweeney",
+"F.P. Journe Watches", "Greubel Forsey Watches", "MB&F Watches", "Urwerk Watches", "De Bethune Watches",
+"H. Moser Watches", "Parmigiani Fleurier", "Czapek", "Laurent Ferrier", "Kari Voutilainen",
+"Rimowa", "Globe-Trotter", "Chester Barrie", "Valextra Milan", "Moynat Paris",
+"Kering Eyewear", "Lindberg", "Mykita", "Matsuda", "Jacques Marie Mage",
+"Celltei", "Kifaru", "Mystery Ranch", "Stone Glacier", "Seek Outside"
+
 "Luminous", "Microtek", "Exide", "Amaron", "Sukam",
 "Waaree", "Adani Solar", "Vikram Solar", "Tata Power Solar", "Enphase",
 "SolarEdge", "Victron Energy", "EcoFlow", "Jackery", "Goal Zero",
