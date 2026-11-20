@@ -508,3 +508,38 @@
     "Fellow", "Hario", "Chemex", "AeroPress", "Baratza",
     "Vitamix", "Blendtec", "Oster", "Hamilton Beach", "Zojirushi",
     "Tiger Corporation", "Blueair", "Winix", "IQAir", "Levoit",
+# --- Big Health, Fitness & Nutrition Brands ---
+    "MuscleBlaze", "Optimum Nutrition", "Dymatize", "Myprotein", "GNC",
+    "BigMuscles Nutrition", "AS-IT-IS Nutrition", "Nutrabay", "Kapiva", "Fast&Up",
+    "HealthKart", "Himalaya Wellness", "Dabur", "Patanjali", "Baidyanath",
+    "Zandu", "Organic India", "Vicks", "Cipla Health", "Volini",
+
+    # --- Big Skincare, Beauty & Cosmetics Brands ---
+    "Cetaphil", "Simple Skincare", "Minimalist", "The Derma Co", "Dot & Key",
+    "Plum Goodness", "Neutrogena", "Bioderma", "La Roche-Posay", "CeraVe",
+    "Paula's Choice", "The Ordinary", "Innisfree", "COSRX", "Laneige",
+    "Lakme", "Maybelline", "L'Oreal Paris", "MAC Cosmetics", "Sugar Cosmetics",
+    "Mamaearth", "Biotique", "Khadi Natural", "Nivea", "Vaseline",
+
+    # --- Big Auto, Bike & Car Care / Accessories Brands ---
+    "Bosch Automotive", "3M Car Care", "Motul", "Castrol", "Shell Helix",
+    "Mobil 1", "Michelin", "Bridgestone", "MRF Tyres", "Apollo Tyres",
+    "CEAT", "JK Tyre", "TVS Eurogrip", "Hella", "Osram",
+    "Philips Automotive", "Jopasu", "Waxpol", "Turtle Wax", "WD-40",
+
+    # --- Big Tools, Power Tools & Home Hardware Brands ---
+    "Bosch Professional", "Makita", "DeWalt", "Black+Decker", "Stanley",
+    "Taparia", "Ingco", "Total Tools", "Hikoki", "Metabo",
+    "Wera", "Knipex", "Gedore", "Yale Locks", "Godrej Locks",
+    "Europa Locks", "Dorset", "Hafele", "Hettich", "Jaquar",
+
+    # --- Big Smart Home, Networking & Storage Brands ---
+    "TP-Link", "Netgear", "Asus Networking", "Linksys", "Ubiquiti",
+    "SanDisk", "Samsung Memory", "Lexar", "Transcend", "ADATA",
+    "anker", "Belkin", "Ugreen", "Baseus", "Ambrane",
+
+    # --- Big Stationery, Office & Musical Gear Brands ---
+    "Classmate", "Camlin", "Kokuyo Camlin", "Parker", "Sheaffer",
+    "Lamy", "Cross Pens", "Pilot Pens", "Staedtler", "Faber-Castell",
+    "Apsara", "Nataraj", "Casio Keyboards", "Yamaha Music", "Fender",
+    "Gibson", "Ibanez", "Cort Guitars", "Zoom Audio", "Behringer",
