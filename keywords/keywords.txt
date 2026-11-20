@@ -1,4 +1,25 @@
- "Bajaj Electricals", "V-Guard", "Rockerz", "boAt", "Noise",
+ "Apple", "Samsung", "Sony", "Bose", "Sennheiser", "Marshall", "JBL",
+    "LG", "Panasonic", "Acer", "ASUS", "MSI", "Lenovo", "HP", "Dell",
+    "Canon", "Nikon", "GoPro", "DJI", "Garmin", "Fossil", "Titan",
+
+    # महंगे होम व किचन अप्लायंसेस
+    "Dyson", "Bosch", "IFB", "Whirlpool", "Haier", "Godrej", "Voltas",
+    "Blue Star", "Kent", "Aquaguard", "Eureka Forbes", "Morphy Richards",
+    "Inalsa", "AGARO", "Borosil", "Stahl", "Bergner", "Meyer",
+
+    # महंगे शूज़, कपड़े, बैग और फैशन
+    "Nike", "Adidas", "Reebok", "Asics", "New Balance", "Crocs", "Woodland",
+    "Clarks", "Hush Puppies", "Skechers", "Levi's", "Tommy Hilfiger",
+    "Calvin Klein", "Lacoste", "Raymond", "Louis Philippe", "Van Heusen",
+    "Selected", "Jack & Jones", "ONLY", "Vero Moda", "Samsonite", "Tumi",
+    "Mokobara", "Uppercase",
+
+    # महंगे परफ्यूम, स्किनकेयर और ग्रूमिंग
+    "Dermalogica", "Kiehl's", "Clinique", "Estee Lauder", "MAC",
+    "Forest Essentials", "Kama Ayurveda", "Davidoff", "Hugo Boss",
+    "Versace", "Armani", "Braun", "Panasonic Grooming",
+
+"Bajaj Electricals", "V-Guard", "Rockerz", "boAt", "Noise",
     "Fire-Boltt", "Urban", "Govo", "Truke", "Fingers",
     "Enter", "Lapcare", "Ant Esports", "Circle", "Redgear",
     "Cosmic Byte", "Kreo", "EvoFox", "Tukzer", "Ambrane Power",
