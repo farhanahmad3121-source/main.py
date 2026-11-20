@@ -18,7 +18,7 @@ app = Flask(__name__)
 @app.route("/")
 @app.route("/health")
 def home():
-    return "Amazon Advanced Loot Bot Running!"
+    return "Amazon Filter-Style Loot Bot Running!"
 
 
 def run_flask():
@@ -34,9 +34,11 @@ SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
 
 MIN_DISCOUNT = 90                  # 90% या उससे ज़्यादा ऑफ़
 MAX_PRICE = 100                    # ₹100 या उससे कम
+MAX_PAGES = 2                      # प्रति कीवर्ड अधिकतम कितने पेज चेक करने हैं (1 या 2+)
 BATCH_SIZE = 50                    # हर 50 कीवर्ड के बाद बैच रिपोर्ट
 LOOP_DELAY = 600                   # पूरा साइकिल खत्म होने के बाद 10 मिनट का इंतज़ार
-KEYWORD_DELAY = 0.01               # तेज़ स्कैन डिले
+KEYWORD_DELAY = 0.02               # कीवर्ड्स के बीच गैप
+PAGE_DELAY = 0.15                  # अगले पेज पर जाने से पहले गैप
 SEEN_EXPIRY_DAYS = 20              # 20 दिन तक वही डील दोबारा नहीं आएगी
 SEEN_EXPIRY_SECONDS = SEEN_EXPIRY_DAYS * 86400
 TELEGRAM_RETRY_DELAY = 2           # Telegram एरर आने पर री-ट्राई
@@ -320,9 +322,13 @@ def extract_product_info(item):
     return title, product_link, asin
 
 
-def scrape_amazon_kw(session: requests.Session, kw: str):
+def scrape_amazon_page(session: requests.Session, kw: str, page_no: int = 1):
     query = kw.strip().replace(" ", "+")
-    url = f"https://www.amazon.in/s?k={query}"
+    if page_no <= 1:
+        url = f"https://www.amazon.in/s?k={query}"
+    else:
+        url = f"https://www.amazon.in/s?k={query}&page={page_no}"
+
     resp = session.get(url, headers=make_amazon_headers(), timeout=10)
     code = resp.status_code
 
@@ -387,9 +393,9 @@ def build_batch_report(
     if zero_items_detail:
         lines.append(f"• ⚪ 0 आइटम वाले नाम [{len(zero_items_detail)}]: " + ", ".join(zero_items_detail[:8]))
 
-    lines.append("\n📋 इस बैच के हर नाम पर एक पेज में आए आइटम:")
+    lines.append("\n📋 इस बैच के हर नाम पर चेक हुए आइटम:")
     for kw, cnt, d_cnt in batch_kw_counts:
-        row_txt = f"• {kw}: {cnt} आइटम" + (f" (🔥{d_cnt} लूट)" if d_cnt > 0 else "")
+        row_txt = f"• {kw}: {cnt} पेज आइटम" + (f" (🔥{d_cnt} लूट)" if d_cnt > 0 else " (0 लूट)")
         current_len = sum(len(x) + 1 for x in lines)
         if current_len + len(row_txt) > 3880:
             lines.append("... (मैसेज लिमिट के कारण बाकी नाम कटे)")
@@ -433,63 +439,79 @@ def scan_once():
             batch_kw_counts = []
 
             for kw in batch_kws:
+                kw_total_items = 0
                 kw_deals_found = 0
-                try:
-                    res = scrape_amazon_kw(session, kw)
-                    status = res["status"]
-                    cnt = res["count"]
+                kw_had_bad = False
+                kw_had_ok = False
+                kw_zero_reason = ""
 
-                    if status == "ok":
-                        consecutive_bad = 0
-                        ok_count += 1
-                        total_page_items += cnt
-                        batch_kw_counts.append((kw, cnt, 0))
+                for page_no in range(1, max(1, MAX_PAGES) + 1):
+                    try:
+                        res = scrape_amazon_page(session, kw, page_no=page_no)
+                        status = res["status"]
+                        cnt = res["count"]
 
-                        for d in res["deals"]:
-                            sig = d["sig"]
-                            legacy_sig = d["legacy_sig"]
-                            if (sig in seen_deals) or (legacy_sig and legacy_sig in seen_deals):
-                                continue
+                        if status == "ok":
+                            consecutive_bad = 0
+                            kw_had_ok = True
+                            kw_total_items += cnt
 
-                            msg = (
-                                f"🔥 TRIPLE LOOT (Amazon | 90%+ OFF | <=₹100 | FREE DELIVERY)\n\n"
-                                f"🔎 Keyword: {kw} (पेज आइटम: {cnt})\n"
-                                f"🛍️ {d['title'][:160]}\n"
-                                f"💰 Price: ₹{d['price']} | 🏷️ Discount: {d['discount']}% | 🚚 Free Delivery: Yes\n"
-                                f"🔗 {d['link']}"
-                            )
-                            if send_telegram(msg, retry_forever=True):
-                                seen_deals[sig] = time.time()
-                                save_seen_deals(seen_deals)
-                                b_deals += 1
-                                kw_deals_found += 1
-                                time.sleep(0.2)
+                            for d in res["deals"]:
+                                sig = d["sig"]
+                                legacy_sig = d["legacy_sig"]
+                                if (sig in seen_deals) or (legacy_sig and legacy_sig in seen_deals):
+                                    continue
 
-                        if kw_deals_found > 0:
-                            batch_kw_counts[-1] = (kw, cnt, kw_deals_found)
+                                msg = (
+                                    f"🔥 TRIPLE LOOT (Amazon | {MIN_DISCOUNT}%+ OFF | <=₹{MAX_PRICE} | FREE DELIVERY)\n\n"
+                                    f"🔎 Keyword: {kw} (Page {page_no} | पेज आइटम: {cnt})\n"
+                                    f"🛍️ {d['title'][:160]}\n"
+                                    f"💰 Price: ₹{d['price']} | 🏷️ Discount: {d['discount']}% | 🚚 Free Delivery: Yes\n"
+                                    f"🔗 {d['link']}"
+                                )
+                                if send_telegram(msg, retry_forever=True):
+                                    seen_deals[sig] = time.time()
+                                    save_seen_deals(seen_deals)
+                                    b_deals += 1
+                                    kw_deals_found += 1
+                                    time.sleep(0.2)
 
-                    elif status == "empty":
-                        consecutive_bad = 0
-                        ok_count += 1
-                        zero_count += 1
-                        zero_items_detail.append(f"{kw} ({res['reason']})")
-                        batch_kw_counts.append((kw, 0, 0))
+                            if page_no < MAX_PAGES:
+                                time.sleep(PAGE_DELAY)
 
-                    else:
-                        bad_count += 1
+                        elif status == "empty":
+                            consecutive_bad = 0
+                            kw_had_ok = True
+                            kw_zero_reason = res["reason"]
+                            break
+
+                        else:
+                            kw_had_bad = True
+                            consecutive_bad += 1
+                            print(f"[Amazon {res['err_tag']}] {kw} (page {page_no})")
+                            session.close()
+                            session = build_amazon_session()
+                            break
+
+                    except Exception as e:
+                        kw_had_bad = True
                         consecutive_bad += 1
-                        batch_kw_counts.append((kw, 0, 0))
-                        print(f"[Amazon {res['err_tag']}] {kw}")
+                        print(f"[Amazon Error {kw} page {page_no}]: {e}")
                         session.close()
                         session = build_amazon_session()
+                        break
 
-                except Exception as e:
+                if kw_had_ok and kw_total_items == 0 and not kw_had_bad:
+                    ok_count += 1
+                    zero_count += 1
+                    zero_items_detail.append(f"{kw} ({kw_zero_reason})")
+                elif kw_had_ok:
+                    ok_count += 1
+                    total_page_items += kw_total_items
+                elif kw_had_bad:
                     bad_count += 1
-                    consecutive_bad += 1
-                    batch_kw_counts.append((kw, 0, 0))
-                    print(f"[Amazon Error {kw}]: {e}")
-                    session.close()
-                    session = build_amazon_session()
+
+                batch_kw_counts.append((kw, kw_total_items, kw_deals_found))
 
                 if consecutive_bad >= MAX_CONSECUTIVE_BAD:
                     send_alert_safe(
@@ -544,10 +566,10 @@ def background_worker():
 
     try:
         initial_kws = load_keywords_from_file(KEYWORDS_FILE_PATH)
-        print(f"Amazon Advanced Loot Bot Started ({len(initial_kws)} Keywords)...")
+        print(f"Amazon Filter-Style Loot Bot Started ({len(initial_kws)} Keywords)...")
         send_alert_safe(
             f"🤖 Amazon Advanced Loot बॉट चालू हो गया!\n"
-            f"• फ़िल्टर: 90%+ OFF | ₹100 या कम | Free Delivery\n"
+            f"• फ़िल्टर: {MIN_DISCOUNT}%+ OFF | ₹{MAX_PRICE} या कम | Free Delivery (Max {MAX_PAGES} Pages)\n"
             f"• कीवर्ड्स: {len(initial_kws)} ({KEYWORDS_FILE_PATH})"
         )
 
