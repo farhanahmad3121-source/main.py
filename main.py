@@ -16,7 +16,7 @@ app = Flask(__name__)
 @app.route("/")
 @app.route("/health")
 def home():
-    return "Amazon Loot Bot (5 Smart Upgrades + 50-KW Batch Item Counts) Running!"
+    return "Multi-Site Loot Bot (Amazon -> Flipkart -> Meesho) Running!"
 
 
 def run_flask():
@@ -27,21 +27,20 @@ def run_flask():
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
-# GitHub रेपो के अंदर कीवर्ड्स फ़ाइल का रास्ता
 KEYWORDS_FILE_PATH = os.environ.get("KEYWORDS_FILE", "keywords/keywords.txt")
-# Telegram में आ चुकी डील्स सेव करने वाली फ़ाइल का रास्ता
 SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
 
 MIN_DISCOUNT = 90              # 90% या उससे ज़्यादा ऑफ़
 MAX_PRICE = 100                # ₹100 या उससे कम
 BATCH_SIZE = 50                # हर 50 कीवर्ड के बाद बैच रिपोर्ट
-LOOP_DELAY = 600               # पूरा साइकिल खत्म होने के बाद 10 मिनट (600 सेकंड) का इंतज़ार
-KEYWORD_DELAY = 0.01             # हर कीवर्ड सर्च के बाद 4 सेकंड का गैप
+LOOP_DELAY = 600               # पूरा साइकिल खत्म होने के बाद 10 मिनट का इंतज़ार
+KEYWORD_DELAY = 0.05           # तेज़ मोड (ज़रूरत पड़े तो 0.01 या 0.2 कर सकते हैं)
+SITE_STEP_DELAY = 0.05         # Amazon -> Flipkart -> Meesho के बीच छोटा गैप
 SEEN_EXPIRY_DAYS = 20          # 20 दिन तक वही डील दोबारा नहीं आएगी
 SEEN_EXPIRY_SECONDS = SEEN_EXPIRY_DAYS * 86400
-TELEGRAM_RETRY_DELAY = 2       # Telegram भेजने में एरर आए तो 2 सेकंड में दोबारा ट्राई
+TELEGRAM_RETRY_DELAY = 2       # Telegram एरर आने पर 2 सेकंड में री-ट्राई
 MAX_CONSECUTIVE_BAD = 5        # लगातार 5 ब्लॉक/एरर पर स्मार्ट ब्रेक
-COOLDOWN_SECONDS = 900         # 15 मिनट (900 सेकंड) का कूल-डाउन ब्रेक
+COOLDOWN_SECONDS = 900         # 15 मिनट का कूल-डाउन ब्रेक
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -53,6 +52,15 @@ USER_AGENTS = [
 file_io_lock = threading.Lock()
 worker_lock = threading.Lock()
 worker_started = False
+
+
+def make_headers(referer: str = "https://www.amazon.in/") -> dict:
+    return {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-IN,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": referer,
+    }
 
 
 def load_keywords_from_file(filepath: str = KEYWORDS_FILE_PATH) -> list:
@@ -186,60 +194,40 @@ def is_captcha_or_block_page(html_text: str) -> bool:
         "automated access to amazon data",
         "api-services-support@amazon.com",
         "request was blocked",
+        "access denied",
     ]
     return any(p in t for p in block_phrases)
 
 
 def classify_zero_items_reason(html_text: str) -> str:
-    """बदलाव #1: 200 OK आने के बाद भी 0 आइटम दिखने की असली वजह बताता है।"""
     t = html_text.lower()
     no_res_phrases = [
         "no results for",
         "0 results for",
         "did not match any products",
         "try checking your spelling",
+        "no products found",
     ]
     if any(p in t for p in no_res_phrases):
         return "कोई रिजल्ट नहीं"
     if "something went wrong" in t or "sorry!" in t:
-        return "Amazon एरर पेज"
-    return "अलग लेआउट/खाली पेज"
+        return "एरर पेज"
+    return "खाली/अलग लेआउट"
 
 
-def extract_real_price_and_discount(card_element, full_text: str):
-    """बदलाव #4: स्ट्राइक-थ्रू MRP और /count को छोड़कर असली सेल प्राइस निकालता है।"""
-    main_prices = []
-    for el in card_element.select('.a-price:not([data-a-strike="true"]) .a-offscreen'):
-        raw = el.get_text(" ", strip=True)
-        parent_ctx = el.parent.parent.get_text(" ", strip=True).lower() if el.parent and el.parent.parent else ""
-        if any(unit in parent_ctx for unit in ["/ count", "/count", "/ pair", "/pair", "/ pack", "/pack", "/ piece"]):
-            continue
-        m = re.findall(r"₹\s*[\d,]+(?:\.\d+)?", raw)
-        for num_str in m:
-            try:
-                val = int(float(num_str.replace("₹", "").replace(",", "").strip()))
-                if val > 0:
-                    main_prices.append(val)
-            except ValueError:
-                pass
+def parse_price_int(raw_str: str):
+    m = re.findall(r"₹\s*[\d,]+(?:\.\d+)?", raw_str)
+    for num_str in m:
+        try:
+            val = int(float(num_str.replace("₹", "").replace(",", "").strip()))
+            if val > 0:
+                return val
+        except ValueError:
+            pass
+    return None
 
-    if not main_prices:
-        cleaned_for_price = re.sub(
-            r"₹\s*[\d,]+\s*/\s*(count|pair|pack|piece|pc|item)",
-            "",
-            full_text,
-            flags=re.IGNORECASE,
-        )
-        for num_str in re.findall(r"₹\s*[\d,]+", cleaned_for_price):
-            try:
-                val = int(num_str.replace("₹", "").replace(",", "").strip())
-                if val > 0:
-                    main_prices.append(val)
-            except ValueError:
-                pass
 
-    real_price = main_prices[0] if main_prices else None
-
+def extract_discount_percent(full_text: str) -> int:
     discounts = []
     for d in re.findall(r"\(?\s*(\d{1,3})\s*%\s*off\s*\)?", full_text, flags=re.IGNORECASE):
         try:
@@ -248,9 +236,7 @@ def extract_real_price_and_discount(card_element, full_text: str):
                 discounts.append(d_val)
         except ValueError:
             pass
-
-    max_discount = max(discounts) if discounts else 0
-    return real_price, max_discount
+    return max(discounts) if discounts else 0
 
 
 def has_free_delivery(text: str) -> bool:
@@ -263,7 +249,35 @@ def extract_asin_from_link(link: str) -> str:
     return m.group(1).upper() if m else ""
 
 
-def extract_strict_product_info(item):
+def extract_amazon_price_and_discount(card_element, full_text: str):
+    main_prices = []
+    for el in card_element.select('.a-price:not([data-a-strike="true"]) .a-offscreen'):
+        raw = el.get_text(" ", strip=True)
+        parent_ctx = el.parent.parent.get_text(" ", strip=True).lower() if el.parent and el.parent.parent else ""
+        if any(unit in parent_ctx for unit in ["/ count", "/count", "/ pair", "/pair", "/ pack", "/pack", "/ piece"]):
+            continue
+        val = parse_price_int(raw)
+        if val is not None:
+            main_prices.append(val)
+
+    if not main_prices:
+        cleaned_for_price = re.sub(
+            r"₹\s*[\d,]+\s*/\s*(count|pair|pack|piece|pc|item)",
+            "",
+            full_text,
+            flags=re.IGNORECASE,
+        )
+        for num_str in re.findall(r"₹\s*[\d,]+", cleaned_for_price):
+            val = parse_price_int(num_str)
+            if val is not None:
+                main_prices.append(val)
+
+    real_price = main_prices[0] if main_prices else None
+    max_discount = extract_discount_percent(full_text)
+    return real_price, max_discount
+
+
+def extract_amazon_product_info(item):
     title_el = item.select_one("h2 span")
     title = title_el.get_text(" ", strip=True) if title_el else ""
     if not title or len(title) < 4:
@@ -282,10 +296,7 @@ def extract_strict_product_info(item):
                 clean = ""
             if clean and ("/s?" not in clean):
                 asin = extract_asin_from_link(clean)
-                if asin:
-                    product_link = f"https://www.amazon.in/dp/{asin}"
-                else:
-                    product_link = clean
+                product_link = f"https://www.amazon.in/dp/{asin}" if asin else clean
                 break
 
     if not product_link:
@@ -294,71 +305,226 @@ def extract_strict_product_info(item):
     return title, product_link, asin
 
 
+def scrape_amazon_kw(session: requests.Session, kw: str):
+    query = kw.strip().replace(" ", "+")
+    url = f"https://www.amazon.in/s?k={query}"
+    resp = session.get(url, headers=make_headers("https://www.amazon.in/"), timeout=10)
+    code = resp.status_code
+
+    if code in (403, 503) or code != 200 or is_captcha_or_block_page(resp.text):
+        return {"status": f"bad_{code}" if code != 200 else "blocked", "count": 0, "reason": "", "deals": []}
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    items = soup.select('div[data-component-type="s-search-result"]')
+    count = len(items)
+    if count == 0:
+        reason = classify_zero_items_reason(resp.text)
+        del soup
+        return {"status": "empty", "count": 0, "reason": reason, "deals": []}
+
+    deals = []
+    for item in items:
+        text = item.get_text(" ", strip=True)
+        if not text:
+            continue
+        lower_text = text.lower()
+        if "currently unavailable" in lower_text or "page not found" in lower_text:
+            continue
+
+        price, discount = extract_amazon_price_and_discount(item, text)
+        free_del = has_free_delivery(text)
+        if not ((discount >= MIN_DISCOUNT) and (price is not None) and (0 < price <= MAX_PRICE) and free_del):
+            continue
+
+        title, link, asin = extract_amazon_product_info(item)
+        if not title or not link:
+            continue
+
+        sig = f"amz:asin:{asin}" if asin else f"amz:{link.lower()}|{title.lower()[:70]}"
+        legacy_sig = f"{link.lower()}|{title.lower()[:70]}"
+        deals.append({"sig": sig, "legacy_sig": legacy_sig, "title": title, "price": price, "discount": discount, "link": link, "free_del": True})
+
+    del soup
+    return {"status": "ok", "count": count, "reason": "", "deals": deals}
+
+
+def scrape_flipkart_kw(session: requests.Session, kw: str):
+    query = requests.utils.quote(kw.strip())
+    url = f"https://www.flipkart.com/search?q={query}"
+    resp = session.get(url, headers=make_headers("https://www.flipkart.com/"), timeout=10)
+    code = resp.status_code
+
+    if code in (403, 503) or code != 200 or is_captcha_or_block_page(resp.text):
+        return {"status": f"bad_{code}" if code != 200 else "blocked", "count": 0, "reason": "", "deals": []}
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    # Flipkart सर्च में प्रोडक्ट कार्ड्स अलग-अलग लेआउट में हो सकते हैं
+    cards = soup.select("div[data-id]")
+    if not cards:
+        cards = [a.parent for a in soup.select("a[href*='/p/']") if a.parent and len(a.parent.get_text(strip=True)) > 15]
+        # डुप्लीकेट पैरेंट हटाएँ
+        seen_ids = set()
+        unique_cards = []
+        for c in cards:
+            oid = id(c)
+            if oid not in seen_ids:
+                seen_ids.add(oid)
+                unique_cards.append(c)
+        cards = unique_cards
+
+    count = len(cards)
+    if count == 0:
+        reason = classify_zero_items_reason(resp.text)
+        del soup
+        return {"status": "empty", "count": 0, "reason": reason, "deals": []}
+
+    deals = []
+    for card in cards:
+        text = card.get_text(" ", strip=True)
+        if not text:
+            continue
+
+        discount = extract_discount_percent(text)
+        free_del = has_free_delivery(text)
+
+        # Flipkart पर ₹X के आसपास के प्राइस निकालें
+        prices = []
+        for m_str in re.findall(r"₹\s*[\d,]+", text):
+            val = parse_price_int(m_str)
+            if val is not None and 0 < val <= MAX_PRICE:
+                prices.append(val)
+
+        price = min(prices) if prices else None
+        if not ((discount >= MIN_DISCOUNT) and (price is not None) and free_del):
+            continue
+
+        link = None
+        title = ""
+        for a_el in card.select("a[href]"):
+            href = a_el.get("href", "").strip()
+            if "/p/" in href:
+                link = ("https://www.flipkart.com" + href.split("?")[0]) if href.startswith("/") else href.split("?")[0]
+                t_txt = a_el.get("title") or a_el.get_text(" ", strip=True)
+                if t_txt and len(t_txt.strip()) >= 4:
+                    title = t_txt.strip()
+                break
+
+        if not title:
+            for tag in card.select("div, a, span"):
+                t = tag.get_text(" ", strip=True)
+                if 6 <= len(t) <= 140 and "₹" not in t and "% off" not in t.lower():
+                    title = t
+                    break
+
+        if not title or not link or len(title) < 4:
+            continue
+
+        sig = f"fk:{link.lower()}|{title.lower()[:70]}"
+        deals.append({"sig": sig, "legacy_sig": "", "title": title, "price": price, "discount": discount, "link": link, "free_del": True})
+
+    del soup
+    return {"status": "ok", "count": count, "reason": "", "deals": deals}
+
+
+def scrape_meesho_kw(session: requests.Session, kw: str):
+    query = requests.utils.quote(kw.strip())
+    url = f"https://www.meesho.com/search?q={query}"
+    resp = session.get(url, headers=make_headers("https://www.meesho.com/"), timeout=10)
+    code = resp.status_code
+
+    if code in (403, 503) or code != 200 or is_captcha_or_block_page(resp.text):
+        return {"status": f"bad_{code}" if code != 200 else "blocked", "count": 0, "reason": "", "deals": []}
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    cards = soup.select("a[href*='/p/']")
+    if not cards:
+        cards = soup.select("div[class*='ProductCard'], div[class*='NewProductCard']")
+
+    count = len(cards)
+    if count == 0:
+        reason = classify_zero_items_reason(resp.text)
+        del soup
+        return {"status": "empty", "count": 0, "reason": reason, "deals": []}
+
+    deals = []
+    for card in cards:
+        container = card if card.name == "div" else (card.parent or card)
+        text = container.get_text(" ", strip=True)
+        if not text:
+            continue
+
+        discount = extract_discount_percent(text)
+        free_del = has_free_delivery(text)
+
+        prices = []
+        for m_str in re.findall(r"₹\s*[\d,]+", text):
+            val = parse_price_int(m_str)
+            if val is not None and 0 < val <= MAX_PRICE:
+                prices.append(val)
+
+        price = min(prices) if prices else None
+        if not ((discount >= MIN_DISCOUNT) and (price is not None) and free_del):
+            continue
+
+        href = card.get("href", "").strip() if card.name == "a" else ""
+        if not href:
+            a_el = container.select_one("a[href*='/p/']")
+            href = a_el.get("href", "").strip() if a_el else ""
+
+        if not href:
+            continue
+
+        link = ("https://www.meesho.com" + href.split("?")[0]) if href.startswith("/") else href.split("?")[0]
+        title = ""
+        for tag in container.select("p, span, div"):
+            t = tag.get_text(" ", strip=True)
+            if 5 <= len(t) <= 140 and "₹" not in t and "% off" not in t.lower() and "free delivery" not in t.lower():
+                title = t
+                break
+
+        if not title or not link:
+            continue
+
+        sig = f"meesho:{link.lower()}|{title.lower()[:70]}"
+        deals.append({"sig": sig, "legacy_sig": "", "title": title, "price": price, "discount": discount, "link": link, "free_del": True})
+
+    del soup
+    return {"status": "ok", "count": count, "reason": "", "deals": deals}
+
+
 def build_batch_report(
     batch_num: int,
     total_batches: int,
     start_idx: int,
     end_idx: int,
-    batch_ok: int,
-    batch_403: list,
-    batch_503: list,
-    batch_blocked: list,
-    batch_other_err: list,
-    batch_empty: list,
+    batch_stats: dict,
     batch_deals: int,
-    batch_kw_counts: list,
+    batch_kw_rows: list,
 ) -> str:
-    """बदलाव #2: हर 50 कीवर्ड पूरे होने पर उसी बैच रिपोर्ट में हर कीवर्ड के पेज आइटम्स बताता है।"""
     batch_len = end_idx - start_idx
-    err_403_n = len(batch_403)
-    err_503_n = len(batch_503)
-    blk_n = len(batch_blocked)
-    oth_n = len(batch_other_err)
-    emp_n = len(batch_empty)
-    total_bad = err_403_n + err_503_n + blk_n + oth_n
-    total_items_in_batch = sum(c for _, c, _ in batch_kw_counts)
-
-    if total_bad == 0 and emp_n == 0:
-        status_line = f"✅ बैच {batch_num}/{total_batches} (#{start_idx+1}-{end_idx}): सभी {batch_len} नाम एकदम सही (200 OK) गए!"
-    elif total_bad == 0:
-        status_line = f"ℹ️ बैच {batch_num}/{total_batches} (#{start_idx+1}-{end_idx}): {batch_ok}/{batch_len} नाम 200 OK गए, {emp_n} में 0 आइटम दिखे।"
-    else:
-        status_line = (
-            f"🚨 बैच {batch_num}/{total_batches} (#{start_idx+1}-{end_idx}) में गड़बड़ी:\n"
-            f"• 200 OK: {batch_ok}/{batch_len} | 403: {err_403_n} | 503: {err_503_n} | ब्लॉक/कैप्चा: {blk_n} | अन्य एरर: {oth_n}"
-        )
+    total_amz_items = sum(r["amz"] for r in batch_kw_rows)
+    total_fk_items = sum(r["fk"] for r in batch_kw_rows)
+    total_meesho_items = sum(r["meesho"] for r in batch_kw_rows)
 
     lines = [
         f"📦 Batch Report ({batch_num}/{total_batches}) — Keywords #{start_idx+1} to {end_idx}",
-        status_line,
-        f"• सही गए (200 OK): {batch_ok}/{batch_len} | 0 आइटम: {emp_n} | कुल पेज आइटम: {total_items_in_batch} | नई लूट: {batch_deals}",
+        f"• आइटम काउंट: AMZ {total_amz_items} | FK {total_fk_items} | Meesho {total_meesho_items} | नई लूट: {batch_deals}",
+        f"• OK/Empty/Bad -> AMZ: {batch_stats['amz_ok']}/{batch_len} (0:{batch_stats['amz_empty']}, Bad:{batch_stats['amz_bad']}) | "
+        f"FK: {batch_stats['fk_ok']}/{batch_len} (0:{batch_stats['fk_empty']}, Bad:{batch_stats['fk_bad']}) | "
+        f"Meesho: {batch_stats['meesho_ok']}/{batch_len} (0:{batch_stats['meesho_empty']}, Bad:{batch_stats['meesho_bad']})",
+        "\n📋 हर नाम पर पेज आइटम (AMZ / FK / Meesho):",
     ]
 
-    if batch_403:
-        lines.append(f"• ❌ 403 (Amazon ब्लॉक) [{err_403_n}]: {', '.join(batch_403[:15])}")
-    if batch_503:
-        lines.append(f"• ❌ 503 (सर्वर बिज़ी) [{err_503_n}]: {', '.join(batch_503[:15])}")
-    if batch_blocked:
-        lines.append(f"• ❌ कैप्चा/रोबोट चेक [{blk_n}]: {', '.join(batch_blocked[:15])}")
-    if batch_other_err:
-        lines.append(f"• ❌ अन्य एरर [{oth_n}]: {', '.join(batch_other_err[:15])}")
-    if batch_empty:
-        lines.append(f"• ⚪ 0 आइटम वाले नाम [{emp_n}]: {', '.join(batch_empty[:20])}")
-
-    if batch_kw_counts:
-        lines.append(f"\n📋 इस बैच के हर नाम पर एक पेज में आए आइटम:")
-        for kw, cnt, d_cnt in batch_kw_counts:
-            item_line = f"• {kw}: {cnt} आइटम" + (f" (🔥 {d_cnt} लूट)" if d_cnt > 0 else "")
-            current_len = sum(len(x) + 1 for x in lines)
-            if current_len + len(item_line) > 3880:
-                lines.append("... (टेलीग्राम लिमिट के कारण बाकी नाम कटे)")
-                break
-            lines.append(item_line)
+    for r in batch_kw_rows:
+        row_txt = f"• {r['kw']}: A:{r['amz']} | F:{r['fk']} | M:{r['meesho']}" + (f" (🔥{r['deals']})" if r["deals"] > 0 else "")
+        current_len = sum(len(x) + 1 for x in lines)
+        if current_len + len(row_txt) > 3880:
+            lines.append("... (मैसेज लिमिट के कारण बाकी नाम कटे)")
+            break
+        lines.append(row_txt)
 
     report = "\n".join(lines)
-    if len(report) > 3950:
-        report = report[:3940] + "\n... (लिमिट लंबी होने पर कटी)"
-    return report
+    return report[:3940] + "\n... (कटी)" if len(report) > 3950 else report
 
 
 def scan_once():
@@ -370,25 +536,19 @@ def scan_once():
     keywords = load_keywords_from_file(KEYWORDS_FILE_PATH)
     total_kw = len(keywords)
     if total_kw == 0:
-        send_alert_safe(
-            f"⚠️ '{KEYWORDS_FILE_PATH}' में कोई कीवर्ड नहीं मिला!\n"
-            f"• GitHub प्रोजेक्ट में फ़ाइल बनाकर कीवर्ड्स डालें।"
-        )
+        send_alert_safe(f"⚠️ '{KEYWORDS_FILE_PATH}' में कोई कीवर्ड नहीं मिला!")
         return
 
     total_batches = (total_kw + BATCH_SIZE - 1) // BATCH_SIZE
-
-    overall_200 = 0
-    overall_403 = 0
-    overall_503 = 0
-    overall_blocked = 0
-    overall_other_err = 0
-    overall_empty = 0
     overall_deals = 0
-    overall_scanned_items = 0
     consecutive_bad = 0
 
     session = requests.Session()
+    sites = [
+        ("amz", "Amazon", scrape_amazon_kw),
+        ("fk", "Flipkart", scrape_flipkart_kw),
+        ("meesho", "Meesho", scrape_meesho_kw),
+    ]
 
     try:
         for batch_idx in range(total_batches):
@@ -396,161 +556,89 @@ def scan_once():
             end_idx = min(start_idx + BATCH_SIZE, total_kw)
             batch_kws = keywords[start_idx:end_idx]
 
-            b_ok = 0
-            b_403 = []
-            b_503 = []
-            b_blocked = []
-            b_other = []
-            b_empty = []
             b_deals = 0
-            b_kw_counts = []
+            b_kw_rows = []
+            b_stats = {
+                "amz_ok": 0, "amz_empty": 0, "amz_bad": 0,
+                "fk_ok": 0, "fk_empty": 0, "fk_bad": 0,
+                "meesho_ok": 0, "meesho_empty": 0, "meesho_bad": 0,
+            }
 
             for kw in batch_kws:
-                query = kw.strip().replace(" ", "+")
-                base_url = f"https://www.amazon.in/s?k={query}"
-                headers = {
-                    "User-Agent": random.choice(USER_AGENTS),
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                    "Accept-Language": "en-IN,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
-                    "Referer": "https://www.amazon.in/",
-                }
+                row = {"kw": kw, "amz": 0, "fk": 0, "meesho": 0, "deals": 0}
+                kw_had_bad = False
 
-                soup = None
-                resp = None
-                kw_item_count = 0
-                kw_deals_count = 0
-                is_bad_request = False
+                for code_key, site_label, scraper_fn in sites:
+                    try:
+                        res = scraper_fn(session, kw)
+                        status = res["status"]
+                        cnt = res["count"]
+                        row[code_key] = cnt
 
-                try:
-                    resp = session.get(base_url, headers=headers, timeout=12)
-                    code = resp.status_code
-
-                    if code == 403:
-                        b_403.append(kw)
-                        is_bad_request = True
-                        print(f"[Status 403] {kw}")
-                    elif code == 503:
-                        b_503.append(kw)
-                        is_bad_request = True
-                        print(f"[Status 503] {kw}")
-                    elif code != 200:
-                        b_other.append(f"{kw} (HTTP {code})")
-                        is_bad_request = True
-                        print(f"[Status {code}] {kw}")
-                    elif is_captcha_or_block_page(resp.text):
-                        b_blocked.append(kw)
-                        is_bad_request = True
-                        print(f"[Captcha/Blocked on 200] {kw}")
-                    else:
-                        consecutive_bad = 0
-                        b_ok += 1
-                        soup = BeautifulSoup(resp.text, "html.parser")
-                        items = soup.select('div[data-component-type="s-search-result"]')
-                        kw_item_count = len(items)
-                        overall_scanned_items += kw_item_count
-
-                        if kw_item_count == 0:
-                            reason = classify_zero_items_reason(resp.text)
-                            b_empty.append(f"{kw} ({reason})")
-                            print(f"[0 Items on 200] {kw} -> {reason}")
-                        else:
-                            print(f"[Items] {kw}: {kw_item_count} आइटम")
-                            for item in items:
-                                text = item.get_text(" ", strip=True)
-                                if not text:
-                                    continue
-
-                                lower_text = text.lower()
-                                if "currently unavailable" in lower_text or "page not found" in lower_text:
-                                    continue
-
-                                price, discount = extract_real_price_and_discount(item, text)
-                                free_del = has_free_delivery(text)
-
-                                is_valid = (
-                                    (discount >= MIN_DISCOUNT)
-                                    and (price is not None)
-                                    and (0 < price <= MAX_PRICE)
-                                    and free_del
-                                )
-
-                                if not is_valid:
-                                    continue
-
-                                title, link, asin = extract_strict_product_info(item)
-                                if not title or not link:
-                                    continue
-
-                                # बदलाव #5: ASIN + पुरानी signature दोनों से डुप्लीकेट जाँच
-                                legacy_sig = f"{link.lower()}|{title.lower()[:70]}"
-                                asin_sig = f"asin:{asin}" if asin else legacy_sig
-
-                                if (asin_sig in seen_deals) or (legacy_sig in seen_deals):
+                        if status == "ok":
+                            b_stats[f"{code_key}_ok"] += 1
+                            for d in res["deals"]:
+                                sig = d["sig"]
+                                legacy_sig = d["legacy_sig"]
+                                if (sig in seen_deals) or (legacy_sig and legacy_sig in seen_deals):
                                     continue
 
                                 msg = (
-                                    f"🔥 TRIPLE LOOT (90%+ OFF | <=₹100 | FREE DELIVERY)\n\n"
-                                    f"🔎 Keyword: {kw} (पेज आइटम: {kw_item_count})\n"
-                                    f"🛍️ {title[:160]}\n"
-                                    f"💰 Price: ₹{price} | 🏷️ Discount: {discount}% | 🚚 Free Delivery: Yes\n"
-                                    f"🔗 {link}"
+                                    f"🔥 TRIPLE LOOT ({site_label} | 90%+ OFF | <=₹100 | FREE DELIVERY)\n\n"
+                                    f"🔎 Keyword: {kw} (पेज आइटम: {cnt})\n"
+                                    f"🛍️ {d['title'][:160]}\n"
+                                    f"💰 Price: ₹{d['price']} | 🏷️ Discount: {d['discount']}% | 🚚 Free Delivery: Yes\n"
+                                    f"🔗 {d['link']}"
                                 )
-
-                                sent_ok = send_telegram(msg, retry_forever=True)
-                                if sent_ok:
-                                    seen_deals[asin_sig] = time.time()
+                                if send_telegram(msg, retry_forever=True):
+                                    seen_deals[sig] = time.time()
                                     save_seen_deals(seen_deals)
                                     b_deals += 1
-                                    kw_deals_count += 1
-                                    time.sleep(0.4)
+                                    row["deals"] += 1
+                                    time.sleep(0.2)
+                        elif status == "empty":
+                            b_stats[f"{code_key}_ok"] += 1
+                            b_stats[f"{code_key}_empty"] += 1
+                        else:
+                            b_stats[f"{code_key}_bad"] += 1
+                            kw_had_bad = True
+                            print(f"[{site_label} {status}] {kw}")
+                    except Exception as e:
+                        b_stats[f"{code_key}_bad"] += 1
+                        kw_had_bad = True
+                        print(f"[{site_label} Error {kw}]: {e}")
 
-                except Exception as e:
-                    b_other.append(f"{kw} ({type(e).__name__})")
-                    is_bad_request = True
-                    print(f"[Error {kw}]: {e}")
-                finally:
-                    del soup
-                    del resp
+                    if SITE_STEP_DELAY > 0:
+                        time.sleep(SITE_STEP_DELAY)
 
-                b_kw_counts.append((kw, kw_item_count, kw_deals_count))
+                b_kw_rows.append(row)
+                print(f"[KW Done] {kw} -> AMZ:{row['amz']} | FK:{row['fk']} | Meesho:{row['meesho']}")
 
-                # बदलाव #3: लगातार 5 ब्लॉक/एरर पर 15 मिनट का स्मार्ट कूल-डाउन ब्रेक
-                if is_bad_request:
+                if kw_had_bad:
                     consecutive_bad += 1
                     if consecutive_bad >= MAX_CONSECUTIVE_BAD:
                         send_alert_safe(
                             f"⏸️ स्मार्ट ब्रेक सक्रिय!\n"
-                            f"• लगातार {consecutive_bad} रिक्वेस्ट में ब्लॉक/एरर आया।\n"
-                            f"• IP बचाने के लिए बॉट अब {COOLDOWN_SECONDS // 60} मिनट रुकेगा, फिर आगे बढ़ेगा।"
+                            f"• लगातार {consecutive_bad} बार ब्लॉक/एरर आया।\n"
+                            f"• बॉट {COOLDOWN_SECONDS // 60} मिनट रुकेगा।"
                         )
                         time.sleep(COOLDOWN_SECONDS)
                         consecutive_bad = 0
                 else:
                     consecutive_bad = 0
 
-                time.sleep(KEYWORD_DELAY)
+                if KEYWORD_DELAY > 0:
+                    time.sleep(KEYWORD_DELAY)
 
-            overall_200 += b_ok
-            overall_403 += len(b_403)
-            overall_503 += len(b_503)
-            overall_blocked += len(b_blocked)
-            overall_other_err += len(b_other)
-            overall_empty += len(b_empty)
             overall_deals += b_deals
-
             batch_msg = build_batch_report(
                 batch_num=batch_idx + 1,
                 total_batches=total_batches,
                 start_idx=start_idx,
                 end_idx=end_idx,
-                batch_ok=b_ok,
-                batch_403=b_403,
-                batch_503=b_503,
-                batch_blocked=b_blocked,
-                batch_other_err=b_other,
-                batch_empty=b_empty,
+                batch_stats=b_stats,
                 batch_deals=b_deals,
-                batch_kw_counts=b_kw_counts,
+                batch_kw_rows=b_kw_rows,
             )
             send_alert_safe(batch_msg)
             gc.collect()
@@ -559,24 +647,11 @@ def scan_once():
         session.close()
         gc.collect()
 
-    total_issues = overall_403 + overall_503 + overall_blocked + overall_other_err
-    if total_issues == 0:
-        health_line = "✅ पूरा चक्र एकदम सही रहा, कोई 403 / 503 / कैप्चा या अन्य एरर नहीं आया।"
-    else:
-        health_line = (
-            f"⚠️ पूरे चक्र में दिक्कतें रहीं:\n"
-            f"• 403:{overall_403}, 503:{overall_503}, ब्लॉक/कैप्चा:{overall_blocked}, अन्य एरर:{overall_other_err}"
-        )
-
-    final_report = (
-        f"🏁 Full Cycle Complete ({total_kw} Keywords in {total_batches} Batches)\n"
-        f"{health_line}\n"
-        f"• कुल 200 OK: {overall_200}/{total_kw} | 0 आइटम: {overall_empty}\n"
-        f"• पूरे राउंड में कुल स्कैन आइटम: {overall_scanned_items}\n"
+    send_alert_safe(
+        f"🏁 Full Multi-Site Cycle Complete ({total_kw} Keywords across Amazon, Flipkart & Meesho)\n"
         f"• कुल नई लूट भेजी गई: {overall_deals}\n"
         f"• अब {LOOP_DELAY // 60} मिनट बाद अगला राउंड होगा।"
     )
-    send_alert_safe(final_report)
 
 
 def background_worker():
@@ -588,12 +663,11 @@ def background_worker():
 
     try:
         initial_kws = load_keywords_from_file(KEYWORDS_FILE_PATH)
-        print(f"Render Loot Bot Started ({len(initial_kws)} Keywords from {KEYWORDS_FILE_PATH})...")
+        print(f"Multi-Site Loot Bot Started ({len(initial_kws)} Keywords)...")
         send_alert_safe(
-            f"🤖 बॉट चालू हो गया है!\n"
-            f"• कीवर्ड फ़ाइल: {KEYWORDS_FILE_PATH} ({len(initial_kws)} कीवर्ड्स)\n"
-            f"• Seen डील फ़ाइल: {SEEN_DEALS_FILE_PATH} ({SEEN_EXPIRY_DAYS} दिन तक दोबारा नहीं आएंगी)\n"
-            f"• हर {BATCH_SIZE} कीवर्ड्स पर बैच रिपोर्ट में हर नाम के पेज आइटम्स की गिनती आएगी।"
+            f"🤖 Multi-Site बॉट चालू हो गया!\n"
+            f"• क्रम: पहले Amazon → फिर Flipkart → फिर Meesho\n"
+            f"• कीवर्ड्स: {len(initial_kws)} ({KEYWORDS_FILE_PATH})"
         )
 
         cycle_no = 0
@@ -604,8 +678,8 @@ def background_worker():
             except Exception as cycle_err:
                 tb_short = traceback.format_exc()[-900:]
                 send_alert_safe(
-                    f"⚠️ रन #{cycle_no} में गड़बड़/एरर आया:\n"
-                    f"• एरर: {type(cycle_err).__name__}: {cycle_err}\n"
+                    f"⚠️ रन #{cycle_no} में एरर:\n"
+                    f"• {type(cycle_err).__name__}: {cycle_err}\n"
                     f"• Trace:\n{tb_short}"
                 )
                 time.sleep(10)
@@ -617,7 +691,7 @@ def background_worker():
         tb_fatal = traceback.format_exc()[-900:]
         send_alert_safe(
             f"🛑 बॉट वर्कर डेड हो गया:\n"
-            f"• एरर: {type(fatal_err).__name__}: {fatal_err}\n"
+            f"• {type(fatal_err).__name__}: {fatal_err}\n"
             f"• Trace:\n{tb_fatal}"
         )
     finally:
