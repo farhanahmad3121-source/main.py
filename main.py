@@ -6,6 +6,7 @@ import time
 import random
 import threading
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -18,7 +19,7 @@ app = Flask(__name__)
 @app.route("/")
 @app.route("/health")
 def home():
-    return "Amazon Filter-Style Loot Bot Running!"
+    return "Amazon 6-Keyword Parallel Loot Bot Running!"
 
 
 def run_flask():
@@ -34,11 +35,10 @@ SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
 
 MIN_DISCOUNT = 90                  # 90% या उससे ज़्यादा ऑफ़
 MAX_PRICE = 100                    # ₹100 या उससे कम
-MAX_PAGES = 6                      # प्रति कीवर्ड अधिकतम कितने पेज चेक करने हैं (1 या 2+)
+MAX_PAGES = 1                      # स्पीड व सेफ्टी के लिए पेज 1 (चाहे तो 2 कर सकता है)
+KEYWORD_WORKERS = 6                # 6 नाम/कीवर्ड एक साथ समानांतर चलेंगे
 BATCH_SIZE = 50                    # हर 50 कीवर्ड के बाद बैच रिपोर्ट
 LOOP_DELAY = 600                   # पूरा साइकिल खत्म होने के बाद 10 मिनट का इंतज़ार
-KEYWORD_DELAY = 0.02               # कीवर्ड्स के बीच गैप
-PAGE_DELAY = 0.15                  # अगले पेज पर जाने से पहले गैप
 SEEN_EXPIRY_DAYS = 20              # 20 दिन तक वही डील दोबारा नहीं आएगी
 SEEN_EXPIRY_SECONDS = SEEN_EXPIRY_DAYS * 86400
 TELEGRAM_RETRY_DELAY = 2           # Telegram एरर आने पर री-ट्राई
@@ -53,6 +53,8 @@ USER_AGENTS = [
 ]
 
 file_io_lock = threading.Lock()
+seen_lock = threading.Lock()
+state_lock = threading.Lock()
 worker_lock = threading.Lock()
 worker_started = False
 
@@ -66,7 +68,7 @@ def build_amazon_session() -> requests.Session:
         allowed_methods=["GET"],
         raise_on_status=False,
     )
-    adapter = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=10)
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=16, pool_maxsize=16)
     sess.mount("https://", adapter)
     sess.mount("http://", adapter)
     return sess
@@ -150,9 +152,10 @@ seen_deals = load_seen_deals()
 
 def cleanup_old_seen_deals():
     now = time.time()
-    expired_keys = [k for k, ts in seen_deals.items() if (now - ts) >= SEEN_EXPIRY_SECONDS]
-    for k in expired_keys:
-        del seen_deals[k]
+    with seen_lock:
+        expired_keys = [k for k, ts in seen_deals.items() if (now - ts) >= SEEN_EXPIRY_SECONDS]
+        for k in expired_keys:
+            del seen_deals[k]
     if expired_keys:
         save_seen_deals(seen_deals)
         print(f"[Cleanup] {len(expired_keys)} पुराने seen आइटम ({SEEN_EXPIRY_DAYS} दिन पुराने) हटा दिए गए।")
@@ -324,10 +327,7 @@ def extract_product_info(item):
 
 def scrape_amazon_page(session: requests.Session, kw: str, page_no: int = 1):
     query = kw.strip().replace(" ", "+")
-    if page_no <= 1:
-        url = f"https://www.amazon.in/s?k={query}"
-    else:
-        url = f"https://www.amazon.in/s?k={query}&page={page_no}"
+    url = f"https://www.amazon.in/s?k={query}" if page_no <= 1 else f"https://www.amazon.in/s?k={query}&page={page_no}"
 
     resp = session.get(url, headers=make_amazon_headers(), timeout=10)
     code = resp.status_code
@@ -368,6 +368,82 @@ def scrape_amazon_page(session: requests.Session, kw: str, page_no: int = 1):
 
     del soup
     return {"status": "ok", "err_tag": "", "count": count, "reason": "", "deals": deals}
+
+
+def process_single_keyword(kw: str, slow_mode: bool):
+    session = build_amazon_session()
+    kw_total_items = 0
+    kw_deals_found = 0
+    kw_had_ok = False
+    kw_had_bad = False
+    kw_zero_reason = ""
+    bad_events = []
+    sent_deals = []
+
+    try:
+        for page_no in range(1, max(1, MAX_PAGES) + 1):
+            try:
+                res = scrape_amazon_page(session, kw, page_no=page_no)
+                status = res["status"]
+                cnt = res["count"]
+
+                if status == "ok":
+                    kw_had_ok = True
+                    kw_total_items += cnt
+
+                    for d in res["deals"]:
+                        sig = d["sig"]
+                        legacy_sig = d["legacy_sig"]
+                        with seen_lock:
+                            already_seen = (sig in seen_deals) or (legacy_sig and legacy_sig in seen_deals)
+                        if already_seen:
+                            continue
+
+                        msg = (
+                            f"🔥 TRIPLE LOOT (Amazon | {MIN_DISCOUNT}%+ OFF | <=₹{MAX_PRICE} | FREE DELIVERY)\n\n"
+                            f"🔎 Keyword: {kw} (Page {page_no} | पेज आइटम: {cnt})\n"
+                            f"🛍️ {d['title'][:160]}\n"
+                            f"💰 Price: ₹{d['price']} | 🏷️ Discount: {d['discount']}% | 🚚 Free Delivery: Yes\n"
+                            f"🔗 {d['link']}"
+                        )
+                        if send_telegram(msg, retry_forever=True):
+                            with seen_lock:
+                                seen_deals[sig] = time.time()
+                            save_seen_deals(seen_deals)
+                            kw_deals_found += 1
+                            sent_deals.append(d)
+                            time.sleep(0.2)
+
+                elif status == "empty":
+                    kw_had_ok = True
+                    if not kw_zero_reason:
+                        kw_zero_reason = res["reason"]
+                    break
+
+                else:
+                    kw_had_bad = True
+                    bad_events.append(f"{res['err_tag']} ({kw})")
+                    break
+
+            except Exception as e:
+                kw_had_bad = True
+                bad_events.append(f"{type(e).__name__} ({kw})")
+                break
+
+            if slow_mode:
+                time.sleep(0.25)
+    finally:
+        session.close()
+
+    return {
+        "kw": kw,
+        "items": kw_total_items,
+        "deals": kw_deals_found,
+        "had_ok": kw_had_ok,
+        "had_bad": kw_had_bad,
+        "zero_reason": kw_zero_reason,
+        "bad_events": bad_events,
+    }
 
 
 def build_batch_report(
@@ -422,136 +498,97 @@ def scan_once():
     overall_deals = 0
     consecutive_bad = 0
     slowdown_remaining = 0
-    session = build_amazon_session()
 
-    try:
-        for batch_idx in range(total_batches):
-            start_idx = batch_idx * BATCH_SIZE
-            end_idx = min(start_idx + BATCH_SIZE, total_kw)
-            batch_kws = keywords[start_idx:end_idx]
+    for batch_idx in range(total_batches):
+        start_idx = batch_idx * BATCH_SIZE
+        end_idx = min(start_idx + BATCH_SIZE, total_kw)
+        batch_kws = keywords[start_idx:end_idx]
 
-            ok_count = 0
-            zero_count = 0
-            bad_count = 0
-            total_page_items = 0
-            b_deals = 0
-            zero_items_detail = []
-            batch_kw_counts = []
+        ok_count = 0
+        zero_count = 0
+        bad_count = 0
+        total_page_items = 0
+        b_deals = 0
+        zero_items_detail = []
+        results_by_kw = {}
 
-            for kw in batch_kws:
-                kw_total_items = 0
-                kw_deals_found = 0
-                kw_had_bad = False
-                kw_had_ok = False
-                kw_zero_reason = ""
+        workers = max(1, min(KEYWORD_WORKERS, len(batch_kws)))
+        slow_mode = slowdown_remaining > 0
 
-                for page_no in range(1, max(1, MAX_PAGES) + 1):
-                    try:
-                        res = scrape_amazon_page(session, kw, page_no=page_no)
-                        status = res["status"]
-                        cnt = res["count"]
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            future_map = {
+                executor.submit(process_single_keyword, kw, slow_mode): kw
+                for kw in batch_kws
+            }
+            for fut in as_completed(future_map):
+                kw = future_map[fut]
+                try:
+                    r = fut.result()
+                except Exception as e:
+                    r = {
+                        "kw": kw,
+                        "items": 0,
+                        "deals": 0,
+                        "had_ok": False,
+                        "had_bad": True,
+                        "zero_reason": "",
+                        "bad_events": [f"{type(e).__name__} ({kw})"],
+                    }
+                results_by_kw[kw] = r
 
-                        if status == "ok":
-                            consecutive_bad = 0
-                            kw_had_ok = True
-                            kw_total_items += cnt
+                with state_lock:
+                    if r["had_ok"]:
+                        consecutive_bad = 0
+                        if slowdown_remaining > 0:
+                            slowdown_remaining = max(0, slowdown_remaining - 1)
+                    elif r["had_bad"]:
+                        consecutive_bad += len(r["bad_events"]) if r["bad_events"] else 1
 
-                            for d in res["deals"]:
-                                sig = d["sig"]
-                                legacy_sig = d["legacy_sig"]
-                                if (sig in seen_deals) or (legacy_sig and legacy_sig in seen_deals):
-                                    continue
+                    if consecutive_bad >= MAX_CONSECUTIVE_BAD:
+                        send_alert_safe(
+                            f"⏸️ स्मार्ट ब्रेक सक्रिय!\n"
+                            f"• Amazon पर लगातार {consecutive_bad} ब्लॉक/एरर आए।\n"
+                            f"• बॉट {COOLDOWN_SECONDS // 60} मिनट रुकेगा, फिर संभलकर चलेगा।"
+                        )
+                        time.sleep(COOLDOWN_SECONDS)
+                        consecutive_bad = 0
+                        slowdown_remaining = 30
 
-                                msg = (
-                                    f"🔥 TRIPLE LOOT (Amazon | {MIN_DISCOUNT}%+ OFF | <=₹{MAX_PRICE} | FREE DELIVERY)\n\n"
-                                    f"🔎 Keyword: {kw} (Page {page_no} | पेज आइटम: {cnt})\n"
-                                    f"🛍️ {d['title'][:160]}\n"
-                                    f"💰 Price: ₹{d['price']} | 🏷️ Discount: {d['discount']}% | 🚚 Free Delivery: Yes\n"
-                                    f"🔗 {d['link']}"
-                                )
-                                if send_telegram(msg, retry_forever=True):
-                                    seen_deals[sig] = time.time()
-                                    save_seen_deals(seen_deals)
-                                    b_deals += 1
-                                    kw_deals_found += 1
-                                    time.sleep(0.2)
+        batch_kw_counts = []
+        for kw in batch_kws:
+            r = results_by_kw.get(kw, {"items": 0, "deals": 0, "had_ok": False, "had_bad": True, "zero_reason": ""})
+            if r["had_ok"] and r["items"] == 0 and not r["had_bad"]:
+                ok_count += 1
+                zero_count += 1
+                zero_items_detail.append(f"{kw} ({r['zero_reason']})")
+            elif r["had_ok"]:
+                ok_count += 1
+                total_page_items += r["items"]
+            elif r["had_bad"]:
+                bad_count += 1
 
-                            if page_no < MAX_PAGES:
-                                time.sleep(PAGE_DELAY)
+            b_deals += r["deals"]
+            batch_kw_counts.append((kw, r["items"], r["deals"]))
 
-                        elif status == "empty":
-                            consecutive_bad = 0
-                            kw_had_ok = True
-                            kw_zero_reason = res["reason"]
-                            break
-
-                        else:
-                            kw_had_bad = True
-                            consecutive_bad += 1
-                            print(f"[Amazon {res['err_tag']}] {kw} (page {page_no})")
-                            session.close()
-                            session = build_amazon_session()
-                            break
-
-                    except Exception as e:
-                        kw_had_bad = True
-                        consecutive_bad += 1
-                        print(f"[Amazon Error {kw} page {page_no}]: {e}")
-                        session.close()
-                        session = build_amazon_session()
-                        break
-
-                if kw_had_ok and kw_total_items == 0 and not kw_had_bad:
-                    ok_count += 1
-                    zero_count += 1
-                    zero_items_detail.append(f"{kw} ({kw_zero_reason})")
-                elif kw_had_ok:
-                    ok_count += 1
-                    total_page_items += kw_total_items
-                elif kw_had_bad:
-                    bad_count += 1
-
-                batch_kw_counts.append((kw, kw_total_items, kw_deals_found))
-
-                if consecutive_bad >= MAX_CONSECUTIVE_BAD:
-                    send_alert_safe(
-                        f"⏸️ स्मार्ट ब्रेक सक्रिय!\n"
-                        f"• Amazon पर लगातार {consecutive_bad} ब्लॉक/एरर आए।\n"
-                        f"• बॉट {COOLDOWN_SECONDS // 60} मिनट रुकेगा, फिर संभलकर चलेगा।"
-                    )
-                    time.sleep(COOLDOWN_SECONDS)
-                    consecutive_bad = 0
-                    slowdown_remaining = 30
-
-                if slowdown_remaining > 0:
-                    slowdown_remaining -= 1
-                    time.sleep(0.25)
-                elif KEYWORD_DELAY > 0:
-                    time.sleep(KEYWORD_DELAY)
-
-            overall_deals += b_deals
-            batch_msg = build_batch_report(
-                batch_num=batch_idx + 1,
-                total_batches=total_batches,
-                start_idx=start_idx,
-                end_idx=end_idx,
-                ok_count=ok_count,
-                zero_count=zero_count,
-                bad_count=bad_count,
-                total_page_items=total_page_items,
-                batch_deals=b_deals,
-                zero_items_detail=zero_items_detail,
-                batch_kw_counts=batch_kw_counts,
-            )
-            send_alert_safe(batch_msg)
-            gc.collect()
-
-    finally:
-        session.close()
+        overall_deals += b_deals
+        batch_msg = build_batch_report(
+            batch_num=batch_idx + 1,
+            total_batches=total_batches,
+            start_idx=start_idx,
+            end_idx=end_idx,
+            ok_count=ok_count,
+            zero_count=zero_count,
+            bad_count=bad_count,
+            total_page_items=total_page_items,
+            batch_deals=b_deals,
+            zero_items_detail=zero_items_detail,
+            batch_kw_counts=batch_kw_counts,
+        )
+        send_alert_safe(batch_msg)
         gc.collect()
 
     send_alert_safe(
-        f"🏁 Full Amazon Cycle Complete ({total_kw} Keywords)\n"
+        f"🏁 Full Amazon 6-Keyword Cycle Complete ({total_kw} Keywords)\n"
         f"• कुल नई लूट भेजी गई: {overall_deals}\n"
         f"• अब {LOOP_DELAY // 60} मिनट बाद अगला राउंड होगा।"
     )
@@ -566,10 +603,10 @@ def background_worker():
 
     try:
         initial_kws = load_keywords_from_file(KEYWORDS_FILE_PATH)
-        print(f"Amazon Filter-Style Loot Bot Started ({len(initial_kws)} Keywords)...")
+        print(f"Amazon 6-Keyword Parallel Loot Bot Started ({len(initial_kws)} Keywords)...")
         send_alert_safe(
-            f"🤖 Amazon Advanced Loot बॉट चालू हो गया!\n"
-            f"• फ़िल्टर: {MIN_DISCOUNT}%+ OFF | ₹{MAX_PRICE} या कम | Free Delivery (Max {MAX_PAGES} Pages)\n"
+            f"🤖 Amazon 6-Keyword Loot बॉट चालू हो गया!\n"
+            f"• एक साथ नाम: {KEYWORD_WORKERS} | फ़िल्टर: {MIN_DISCOUNT}%+ OFF | ₹{MAX_PRICE} या कम | Free Delivery\n"
             f"• कीवर्ड्स: {len(initial_kws)} ({KEYWORDS_FILE_PATH})"
         )
 
@@ -603,7 +640,7 @@ def background_worker():
 
 
 if __name__ == "__main__":
-    t = threading.Thread(target=background_worker, name="AmazonLootWorker")
+    t = threading.Thread(target=background_worker, name="Amazon6KWWorker")
     t.daemon = True
     t.start()
     run_flask()
