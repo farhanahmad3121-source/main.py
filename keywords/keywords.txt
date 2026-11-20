@@ -1,4 +1,24 @@
- "Apple", "Samsung", "Sony", "Bose", "Sennheiser", "Marshall", "JBL",
+ "Ninja", "Breville", "DeLonghi", "Nespresso", "KitchenAid", "Cuisinart",
+    "Instant Pot", "Cosori", "Le Creuset", "Staub", "Zwilling", "WMF",
+    "Eufy", "Roborock", "Dreame", "EcoVacs", "iRobot", "Philips Hue",
+
+    # महंगे ऑडियो, स्टूडियो, गेमिंग और कंप्यूटर गियर
+    "Bang & Olufsen", "Bowers & Wilkins", "Sonos", "Shure", "Audio-Technica",
+    "Razer", "Corsair", "SteelSeries", "HyperX", "Elgato", "Keychron",
+    "Wacom", "Seagate", "Western Digital", "Crucial", "Kingston",
+
+    # महंगे शूज़, आउटडोर, ट्रैवल और स्पोर्ट्स गियर
+    "On Running", "Hoka", "Salomon", "Merrell", "Columbia", "The North Face",
+    "Patagonia", "Arc'teryx", "Superdry", "GANT", "Fred Perry", "Lacoste",
+    "Victorinox", "Thule", "Delsey", "Carl F. Bucherer", "Seiko", "Citizen",
+    "Tissot", "Casio G-Shock",
+
+    # महंगी हेल्थ, स्किनकेयर और लग्ज़री ग्रूमिंग
+    "Paula's Choice", "Sunday Riley", "Drunk Elephant", "La Roche-Posay",
+    "Bioderma", "Murad", "Clarins", "Shiseido", "Foreo", "NuFACE",
+    "Therabody", "Hyperice", "Oral-B", "Waterpik",
+
+"Apple", "Samsung", "Sony", "Bose", "Sennheiser", "Marshall", "JBL",
     "LG", "Panasonic", "Acer", "ASUS", "MSI", "Lenovo", "HP", "Dell",
     "Canon", "Nikon", "GoPro", "DJI", "Garmin", "Fossil", "Titan",
 
