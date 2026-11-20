@@ -1,3 +1,29 @@
+ "Smartwatch", "Wireless Earbuds", "Active Noise Cancelling Headphones", "Bluetooth Party Speaker", "Soundbar",
+    "Action Camera", "Gimbal Stabilizer", "Mechanical Keyboard", "Wireless Gaming Mouse", "Gaming Headset",
+    "Air Purifier", "Robot Vacuum", "Cordless Stick Vacuum", "Espresso Coffee Maker", "Air Fryer",
+    "Electric Kettle Pro", "Hair Dryer Brush", "Hair Straightener", "Electric Shaver", "Electric Toothbrush",
+    "Trolley Suitcase", "Cabin Bag", "Laptop Backpack", "Leather Duffel Bag", "Hiking Rucksack",
+    "Running Shoes", "Trekking Shoes", "Leather Boots", "Sneakers", "Riding Jacket",
+
+    # --- ₹1,000 to ₹3,000 Mid-High Ticket Items & Brands ---
+    "Denim Jacket", "Bomber Jacket", "Puffer Jacket", "Hoodie Sweatshirt", "Blazer",
+    "Chinos Trousers", "Formal Shirt", "Polo T-Shirt", "Oversized Hoodie", "Co-ord Set",
+    "Analog Watch", "Chronograph Watch", "Leather Belt", "Leather Wallet", "Polarized Sunglasses",
+    "Perfume Eau De Parfum", "Body Mist Set", "Grooming Kit", "Trimmer Kit", "Power Bank",
+    "Fast Charger GaN", "USB Hub Dock", "External SSD", "Portable Monitor", "Webcam",
+
+    # --- ₹500 to ₹1,000 Solid Value Items & Brands ---
+    "Cotton Shirt", "Cargo Pants", "Track Pants", "Joggers", "Kurta Set",
+    "Saree", "Dress", "Crop Top", "Sports Shorts", "Compression T-Shirt",
+    "Sports Cap", "Gym Duffel Bag", "Yoga Mat", "Dumbbell Set", "Resistance Bands",
+    "Car Vacuum Cleaner", "Dash Cam", "Car Phone Mount", "Bike Helmet", "Riding Gloves",
+
+    # --- Big ₹500–₹5,000+ Brands (Not in Earlier Lists) ---
+    "Crompton", "Bajaj Appliances", "Havells", "Orient Electric", "Usha",
+    "Morphy Richards", "Inalsa", "Wonderchef", "Pigeon", "Butterfly",
+    "Milton", "Cello", "Signoraware", "Hawkins", "Futura",
+    "Carote", "Bergner", "Meyer", "Vinod Cookware", "Stahl",
+
 "noise cancelling headphones", "anc wireless headphones", "studio headphones", "dj headphones", "gaming laptop accessories",
     "mechanical gaming keyboard", "wireless gaming mouse", "oled smart watch", "gps smartwatch", "smart fitness watch",
     "action cam", "mirrorless camera lens", "dslr camera accessories", "wireless microphone system", "studio condenser mic",
