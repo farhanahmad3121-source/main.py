@@ -1,3 +1,8 @@
+"Rinnai", "Paloma", "Noritz", "Navien", "Ariston Thermo",
+"Baxi", "Vaillant", "Buderus", "Viessmann", "Wolf Garten",
+"Gardena Smart", "Worx", "Greenworks", "EGO Power+", "Kobalt",
+"Makita XGT", "Hilti Nuron", "Festool Domino", "Liebherr Monolith", "Gaggenau 400", 
+
 "Aga Rangemaster", "Viking Range", "JennAir", "Dacor", "Thermador Home",
 "BlueStar Kitchen", "Falmec", "Elica", "Faber Hoods", "Kaff",
 "Hindware Italian Collection", "Parryware", "Kohler", "Grohe", "Hansgrohe",
