@@ -16,7 +16,7 @@ app = Flask(__name__)
 @app.route("/")
 @app.route("/health")
 def home():
-    return "Amazon Loot Bot (70%+ OFF | <=₹300 | Free Delivery) Running!"
+    return "Amazon 90%-100% Loot Bot (<=₹100 | Free Delivery) Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -25,24 +25,25 @@ def run_flask():
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
-# GitHub रेपो में कीवर्ड फ़ाइल और Seen डील्स फ़ाइल का रास्ता
 KEYWORDS_FILE_PATH = os.environ.get("KEYWORDS_FILE", "keywords/keywords.txt")
 SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
 
-MIN_DISCOUNT = 70              # 70% या उससे ज़्यादा ऑफ
-MAX_PRICE = 300                # ₹300 या उससे कम
-BATCH_SIZE = 50                # हर 50 कीवर्ड्स के बाद बैच रिपोर्ट
-LOOP_DELAY = 600               # पूरा राउंड खत्म होने के बाद 10 मिनट (600 सेकंड) का इंतज़ार
-KEYWORD_DELAY = 6              # 503 से बचने के लिए हर कीवर्ड के बीच 6 सेकंड का गैप
+MIN_DISCOUNT = 90              # 90% से 100% तक ऑफ
+MAX_DISCOUNT = 100
+MAX_PRICE = 100                # ₹100 या उससे कम
+BATCH_SIZE = 50                # हर 50 कीवर्ड्स पर बैच रिपोर्ट
+LOOP_DELAY = 600               # पूरा राउंड खत्म होने के बाद 10 मिनट का इंतज़ार
+KEYWORD_DELAY = 5              # हर कीवर्ड सर्च के बीच सुरक्षित गैप
+RETRY_503_WAIT = 8             # 503 आने पर दोबारा कोशिश से पहले इंतज़ार (सेकंड)
 SEEN_EXPIRY_DAYS = 20          # 20 दिन तक वही डील दोबारा नहीं डलेगी
 SEEN_EXPIRY_SECONDS = SEEN_EXPIRY_DAYS * 86400
-TELEGRAM_RETRY_DELAY = 2       # Telegram भेजने में एरर आए तो हर 2 सेकंड में दोबारा ट्राई
+TELEGRAM_RETRY_DELAY = 2
 
 USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
-    "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0",
-    "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.82 Mobile Safari/604.1",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.112 Mobile Safari/604.1",
 ]
 
 file_io_lock = threading.Lock()
@@ -50,9 +51,9 @@ worker_lock = threading.Lock()
 worker_started = False
 
 def build_filtered_search_url(keyword: str) -> str:
-    # p_36:-30000 => ₹300 (30000 पैसे) या उससे कम; pct-off-desc-rank => सबसे ज़्यादा डिस्काउंट ऊपर
+    # p_36:-10000 => ₹100 (10000 पैसे) या उससे कम; pct-off-desc-rank => सबसे ज़्यादा डिस्काउंट ऊपर
     q = quote_plus(keyword.strip())
-    return f"https://www.amazon.in/s?k={q}&rh=p_36%3A-30000&s=pct-off-desc-rank"
+    return f"https://www.amazon.in/s?k={q}&rh=p_36%3A-10000&s=pct-off-desc-rank"
 
 def load_keywords_from_file(filepath: str = KEYWORDS_FILE_PATH) -> list:
     if not os.path.exists(filepath):
@@ -68,10 +69,7 @@ def load_keywords_from_file(filepath: str = KEYWORDS_FILE_PATH) -> list:
 
         if filepath.lower().endswith(".json"):
             data = json.loads(raw_content)
-            if isinstance(data, list):
-                items = [str(x).strip() for x in data if str(x).strip()]
-            else:
-                items = []
+            items = [str(x).strip() for x in data if str(x).strip()] if isinstance(data, list) else []
         else:
             cleaned_lines = []
             for line in raw_content.splitlines():
@@ -189,8 +187,7 @@ def extract_real_price_and_discount(card_element, full_text: str):
         parent_ctx = el.parent.parent.get_text(" ", strip=True).lower() if el.parent and el.parent.parent else ""
         if any(unit in parent_ctx for unit in ["/ count", "/count", "/ pair", "/pair", "/ pack", "/pack", "/ piece", "/piece", "per pair", "per count"]):
             continue
-        m = re.findall(r"₹\s*([\d,]+)", raw)
-        for num_str in m:
+        for num_str in re.findall(r"₹\s*([\d,]+)", raw):
             try:
                 val = int(num_str.replace(",", ""))
                 if val > 0:
@@ -214,6 +211,7 @@ def extract_real_price_and_discount(card_element, full_text: str):
                 pass
 
     real_price = main_prices[0] if main_prices else None
+    mrp = max(main_prices) if len(main_prices) > 1 else None
 
     discounts = []
     for d in re.findall(r"(\d{1,3})\s*%\s*off", full_text, flags=re.IGNORECASE):
@@ -223,7 +221,10 @@ def extract_real_price_and_discount(card_element, full_text: str):
             pass
 
     max_discount = max(discounts) if discounts else 0
-    return real_price, max_discount
+    if max_discount == 0 and real_price and mrp and mrp > real_price:
+        max_discount = round(((mrp - real_price) / mrp) * 100)
+
+    return real_price, mrp, max_discount
 
 def has_free_delivery(text: str) -> bool:
     t = text.lower()
@@ -307,6 +308,20 @@ def build_batch_report(
         report = report[:3940] + "\n... (लिस्ट लंबी होने पर कटी)"
     return report
 
+def fetch_page_with_retry(session, url: str):
+    headers = {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-IN,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Referer": "https://www.amazon.in/",
+    }
+    resp = session.get(url, headers=headers, timeout=14)
+    if resp.status_code == 503:
+        time.sleep(RETRY_503_WAIT)
+        headers["User-Agent"] = random.choice(USER_AGENTS)
+        resp = session.get(url, headers=headers, timeout=14)
+    return resp
+
 def scan_once():
     global seen_deals
     if not seen_deals:
@@ -332,8 +347,6 @@ def scan_once():
     overall_empty = 0
     overall_deals = 0
 
-    session = requests.Session()
-
     try:
         for batch_idx in range(total_batches):
             start_idx = batch_idx * BATCH_SIZE
@@ -348,93 +361,92 @@ def scan_once():
             b_empty = []
             b_deals = 0
 
-            for kw in batch_kws:
-                base_url = build_filtered_search_url(kw)
-                headers = {
-                    "User-Agent": random.choice(USER_AGENTS),
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                    "Accept-Language": "en-IN,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
-                    "Referer": "https://www.amazon.in/",
-                }
-                soup = None
-                resp = None
-                try:
-                    resp = session.get(base_url, headers=headers, timeout=12)
-                    code = resp.status_code
+            session = requests.Session()
+            try:
+                for kw in batch_kws:
+                    base_url = build_filtered_search_url(kw)
+                    soup = None
+                    resp = None
+                    try:
+                        resp = fetch_page_with_retry(session, base_url)
+                        code = resp.status_code
 
-                    if code == 403:
-                        b_403.append(kw)
-                        print(f"[Status 403] {kw}")
-                    elif code == 503:
-                        b_503.append(kw)
-                        print(f"[Status 503] {kw}")
-                    elif code != 200:
-                        b_other.append(f"{kw} (HTTP {code})")
-                        print(f"[Status {code}] {kw}")
-                    elif is_captcha_or_block_page(resp.text):
-                        b_blocked.append(kw)
-                        print(f"[Captcha/Blocked on 200] {kw}")
-                    else:
-                        b_ok += 1
-                        soup = BeautifulSoup(resp.text, "html.parser")
-                        items = soup.select("div[data-component-type='s-search-result']")
-
-                        if len(items) == 0:
-                            b_empty.append(kw)
-                            print(f"[0 Items on 200] {kw}")
+                        if code == 403:
+                            b_403.append(kw)
+                            print(f"[Status 403] {kw}")
+                        elif code == 503:
+                            b_503.append(kw)
+                            print(f"[Status 503] {kw}")
+                        elif code != 200:
+                            b_other.append(f"{kw} (HTTP {code})")
+                            print(f"[Status {code}] {kw}")
+                        elif is_captcha_or_block_page(resp.text):
+                            b_blocked.append(kw)
+                            print(f"[Captcha/Blocked on 200] {kw}")
                         else:
-                            for item in items:
-                                text = item.get_text(" ", strip=True)
-                                if not text:
-                                    continue
+                            b_ok += 1
+                            soup = BeautifulSoup(resp.text, "html.parser")
+                            items = soup.select("div[data-component-type='s-search-result']")
 
-                                lower_text = text.lower()
-                                if "currently unavailable" in lower_text or "page not found" in lower_text:
-                                    continue
+                            if len(items) == 0:
+                                b_empty.append(kw)
+                                print(f"[0 Items on 200] {kw}")
+                            else:
+                                for item in items:
+                                    text = item.get_text(" ", strip=True)
+                                    if not text:
+                                        continue
 
-                                price, discount = extract_real_price_and_discount(item, text)
-                                free_del = has_free_delivery(text)
+                                    lower_text = text.lower()
+                                    if "currently unavailable" in lower_text or "page not found" in lower_text:
+                                        continue
 
-                                is_valid = (
-                                    (discount >= MIN_DISCOUNT)
-                                    and (price is not None)
-                                    and (0 < price <= MAX_PRICE)
-                                    and free_del
-                                )
-                                if not is_valid:
-                                    continue
+                                    price, mrp, discount = extract_real_price_and_discount(item, text)
+                                    free_del = has_free_delivery(text)
 
-                                title, link = extract_strict_product_info(item)
-                                if not title or not link:
-                                    continue
+                                    is_valid = (
+                                        (MIN_DISCOUNT <= discount <= MAX_DISCOUNT)
+                                        and (price is not None)
+                                        and (0 < price <= MAX_PRICE)
+                                        and free_del
+                                    )
+                                    if not is_valid:
+                                        continue
 
-                                sig = f"{link.lower()}|{title.lower()[:70]}"
-                                if sig in seen_deals:
-                                    continue
+                                    title, link = extract_strict_product_info(item)
+                                    if not title or not link:
+                                        continue
 
-                                msg = (
-                                    f"🔥 TRIPLE LOOT ({MIN_DISCOUNT}%+ OFF | <=₹{MAX_PRICE} | FREE DELIVERY)\n\n"
-                                    f"🔍 Keyword: {kw}\n"
-                                    f"📦 {title[:160]}\n"
-                                    f"💰 Price: ₹{price} | 🏷️ Discount: {discount}% | 🚚 Free Delivery: Yes\n"
-                                    f"🔗 {link}"
-                                )
+                                    sig = f"{link.lower()}|{title.lower()[:70]}"
+                                    if sig in seen_deals:
+                                        continue
 
-                                sent_ok = send_telegram(msg, retry_forever=True)
-                                if sent_ok:
-                                    seen_deals[sig] = time.time()
-                                    save_seen_deals(seen_deals)
-                                    b_deals += 1
-                                time.sleep(0.4)
+                                    mrp_part = f" (MRP: ₹{mrp})" if mrp and mrp > price else ""
+                                    msg = (
+                                        f"🔥 90%-100% LOOT (<=₹{MAX_PRICE} | FREE DELIVERY)\n\n"
+                                        f"🔍 Keyword: {kw}\n"
+                                        f"📦 {title[:160]}\n"
+                                        f"💰 Price: ₹{price}{mrp_part} | 🏷️ Discount: {discount}% | 🚚 Free Delivery: Yes\n"
+                                        f"🔗 {link}"
+                                    )
 
-                except Exception as e:
-                    b_other.append(f"{kw} ({type(e).__name__})")
-                    print(f"[Error {kw}]: {e}")
-                finally:
-                    del soup
-                    del resp
+                                    sent_ok = send_telegram(msg, retry_forever=True)
+                                    if sent_ok:
+                                        seen_deals[sig] = time.time()
+                                        save_seen_deals(seen_deals)
+                                        b_deals += 1
+                                    time.sleep(0.4)
 
-                time.sleep(KEYWORD_DELAY)
+                    except Exception as e:
+                        b_other.append(f"{kw} ({type(e).__name__})")
+                        print(f"[Error {kw}]: {e}")
+                    finally:
+                        del soup
+                        del resp
+
+                    time.sleep(KEYWORD_DELAY + random.uniform(0.3, 1.0))
+            finally:
+                session.close()
 
             overall_200 += b_ok
             overall_403 += len(b_403)
@@ -461,7 +473,6 @@ def scan_once():
             gc.collect()
 
     finally:
-        session.close()
         gc.collect()
 
     total_issues = overall_403 + overall_503 + overall_blocked + overall_other_err
@@ -493,7 +504,7 @@ def background_worker():
         initial_kws = load_keywords_from_file(KEYWORDS_FILE_PATH)
         print(f"🚀 Render Loot Bot Started ({len(initial_kws)} Keywords from {KEYWORDS_FILE_PATH})...")
         send_alert_safe(
-            f"🚀 बॉट चालू / जागा है! ({MIN_DISCOUNT}%+ OFF | <=₹{MAX_PRICE} | FREE DELIVERY)\n"
+            f"🚀 बॉट चालू / जागा है! ({MIN_DISCOUNT}%-{MAX_DISCOUNT}% OFF | <=₹{MAX_PRICE} | FREE DELIVERY)\n"
             f"• कीवर्ड फ़ाइल: {KEYWORDS_FILE_PATH} ({len(initial_kws)} कीवर्ड्स)\n"
             f"• Seen रिकॉर्ड फ़ाइल: {SEEN_DEALS_FILE_PATH} ({SEEN_EXPIRY_DAYS} दिन तक दोबारा नहीं डलेगा)\n"
             f"• हर {BATCH_SIZE} कीवर्ड्स पर बैच रिपोर्ट आएगी।"
