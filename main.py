@@ -16,7 +16,7 @@ app = Flask(__name__)
 @app.route("/")
 @app.route("/health")
 def home():
-    return "Amazon Loot Bot (External Keywords + File Seen Deals + 50-KW Batch Report) Running!"
+    return "Amazon Loot Bot (70%+ OFF | <=₹300 | Free Delivery) Running!"
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
@@ -25,17 +25,16 @@ def run_flask():
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
-# GitHub रेपो में नए फ़ोल्डर के अंदर कीवर्ड फ़ाइल का रास्ता
+# GitHub रेपो में कीवर्ड फ़ाइल और Seen डील्स फ़ाइल का रास्ता
 KEYWORDS_FILE_PATH = os.environ.get("KEYWORDS_FILE", "keywords/keywords.txt")
-# Telegram में जा चुकी डील्स सेव करने वाली फ़ाइल का रास्ता
 SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
 
-MIN_DISCOUNT = 90              # 90% या उससे ज़्यादा ऑफ
-MAX_PRICE = 100                # ₹100 या उससे कम
+MIN_DISCOUNT = 70              # 70% या उससे ज़्यादा ऑफ
+MAX_PRICE = 300                # ₹300 या उससे कम
 BATCH_SIZE = 50                # हर 50 कीवर्ड्स के बाद बैच रिपोर्ट
 LOOP_DELAY = 600               # पूरा राउंड खत्म होने के बाद 10 मिनट (600 सेकंड) का इंतज़ार
-KEYWORD_DELAY = 4              # हर कीवर्ड सर्च के बाद 4 सेकंड का गैप
-SEEN_EXPIRY_DAYS = 20          # 7 या 20 दिन तक वही डील दोबारा नहीं डलेगी (यहाँ 20 दिन सेट है)
+KEYWORD_DELAY = 6              # 503 से बचने के लिए हर कीवर्ड के बीच 6 सेकंड का गैप
+SEEN_EXPIRY_DAYS = 20          # 20 दिन तक वही डील दोबारा नहीं डलेगी
 SEEN_EXPIRY_SECONDS = SEEN_EXPIRY_DAYS * 86400
 TELEGRAM_RETRY_DELAY = 2       # Telegram भेजने में एरर आए तो हर 2 सेकंड में दोबारा ट्राई
 
@@ -51,9 +50,9 @@ worker_lock = threading.Lock()
 worker_started = False
 
 def build_filtered_search_url(keyword: str) -> str:
+    # p_36:-30000 => ₹300 (30000 पैसे) या उससे कम; pct-off-desc-rank => सबसे ज़्यादा डिस्काउंट ऊपर
     q = quote_plus(keyword.strip())
-    rh = "p_36%3A-10000%2Cp_n_pct-off-with-tax%3A2665401031%2Cp_n_free_shipping_eligible%3A20556369031"
-    return f"https://www.amazon.in/s?k={q}&rh={rh}&s=pct-off-desc-rank"
+    return f"https://www.amazon.in/s?k={q}&rh=p_36%3A-30000&s=pct-off-desc-rank"
 
 def load_keywords_from_file(filepath: str = KEYWORDS_FILE_PATH) -> list:
     if not os.path.exists(filepath):
@@ -74,7 +73,6 @@ def load_keywords_from_file(filepath: str = KEYWORDS_FILE_PATH) -> list:
             else:
                 items = []
         else:
-            # हर नई लाइन या कॉमा से कीवर्ड अलग करें, खाली लाइन और # कमेंट हटाएँ
             cleaned_lines = []
             for line in raw_content.splitlines():
                 line = line.strip()
@@ -415,7 +413,7 @@ def scan_once():
                                     continue
 
                                 msg = (
-                                    f"👕👟 TRIPLE LOOT (90%+ OFF | <=₹100 | FREE DELIVERY)\n\n"
+                                    f"🔥 TRIPLE LOOT ({MIN_DISCOUNT}%+ OFF | <=₹{MAX_PRICE} | FREE DELIVERY)\n\n"
                                     f"🔍 Keyword: {kw}\n"
                                     f"📦 {title[:160]}\n"
                                     f"💰 Price: ₹{price} | 🏷️ Discount: {discount}% | 🚚 Free Delivery: Yes\n"
@@ -495,7 +493,7 @@ def background_worker():
         initial_kws = load_keywords_from_file(KEYWORDS_FILE_PATH)
         print(f"🚀 Render Loot Bot Started ({len(initial_kws)} Keywords from {KEYWORDS_FILE_PATH})...")
         send_alert_safe(
-            f"🚀 बॉट चालू / जागा है!\n"
+            f"🚀 बॉट चालू / जागा है! ({MIN_DISCOUNT}%+ OFF | <=₹{MAX_PRICE} | FREE DELIVERY)\n"
             f"• कीवर्ड फ़ाइल: {KEYWORDS_FILE_PATH} ({len(initial_kws)} कीवर्ड्स)\n"
             f"• Seen रिकॉर्ड फ़ाइल: {SEEN_DEALS_FILE_PATH} ({SEEN_EXPIRY_DAYS} दिन तक दोबारा नहीं डलेगा)\n"
             f"• हर {BATCH_SIZE} कीवर्ड्स पर बैच रिपोर्ट आएगी।"
