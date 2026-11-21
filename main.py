@@ -30,7 +30,7 @@ SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
 
 MIN_DISCOUNT = 90              # 90% से 100% तक ऑफ
 MAX_DISCOUNT = 100
-MAX_PRICE = 100                # ₹100 या उससे कम
+MAX_PRICE = 20                # ₹100 या उससे कम
 BATCH_SIZE = 50                # हर 50 कीवर्ड्स पर बैच रिपोर्ट
 LOOP_DELAY = 600               # पूरा राउंड खत्म होने के बाद 10 मिनट का इंतज़ार
 KEYWORD_DELAY = 5              # हर कीवर्ड सर्च के बीच सुरक्षित गैप
