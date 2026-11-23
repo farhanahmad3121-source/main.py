@@ -18,7 +18,7 @@ app = Flask(__name__)
 @app.route("/")
 @app.route("/health")
 def home():
-    return "Amazon 90%+ Any Price Free Delivery Loot Bot Running!"
+    return "Amazon Filter-Style Loot Bot Running!"
 
 
 def run_flask():
@@ -32,24 +32,24 @@ TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 KEYWORDS_FILE_PATH = os.environ.get("KEYWORDS_FILE", "keywords/keywords.txt")
 SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
 
-MIN_DISCOUNT = 90
-MAX_DISCOUNT = 100
-MAX_PAGES = 2
-BATCH_SIZE = 50
-LOOP_DELAY = 600
-KEYWORD_DELAY = 0.05
-PAGE_DELAY = 0.2
-SEEN_EXPIRY_DAYS = 20
+MIN_DISCOUNT = 90                  # 90% या उससे ज़्यादा ऑफ़
+MAX_PRICE = 1000                    # ₹100 या उससे कम
+MAX_PAGES = 10                      # प्रति कीवर्ड अधिकतम कितने पेज चेक करने हैं (1 या 2+)
+BATCH_SIZE = 50                    # हर 50 कीवर्ड के बाद बैच रिपोर्ट
+LOOP_DELAY = 600                   # पूरा साइकिल खत्म होने के बाद 10 मिनट का इंतज़ार
+KEYWORD_DELAY = 0.02               # कीवर्ड्स के बीच गैप
+PAGE_DELAY = 0.15                  # अगले पेज पर जाने से पहले गैप
+SEEN_EXPIRY_DAYS = 20              # 20 दिन तक वही डील दोबारा नहीं आएगी
 SEEN_EXPIRY_SECONDS = SEEN_EXPIRY_DAYS * 86400
-TELEGRAM_RETRY_DELAY = 2
-MAX_CONSECUTIVE_BAD = 5
-COOLDOWN_SECONDS = 900
+TELEGRAM_RETRY_DELAY = 2           # Telegram एरर आने पर री-ट्राई
+MAX_CONSECUTIVE_BAD = 5            # लगातार 5 ब्लॉक/एरर पर स्मार्ट ब्रेक
+COOLDOWN_SECONDS = 900             # 15 मिनट का कूल-डाउन ब्रेक
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6367.82 Mobile Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36",
 ]
 
 file_io_lock = threading.Lock()
@@ -85,14 +85,15 @@ def make_amazon_headers() -> dict:
 
 def load_keywords_from_file(filepath: str = KEYWORDS_FILE_PATH) -> list:
     if not os.path.exists(filepath):
-        return ["tshirt", "shirt", "socks", "kurti", "cap"]
+        print(f"[Keywords] फ़ाइल नहीं मिली: {filepath}")
+        return []
 
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             raw_content = f.read().strip()
 
         if not raw_content:
-            return ["tshirt", "shirt", "socks", "kurti", "cap"]
+            return []
 
         if filepath.lower().endswith(".json"):
             data = json.loads(raw_content)
@@ -154,6 +155,7 @@ def cleanup_old_seen_deals():
         del seen_deals[k]
     if expired_keys:
         save_seen_deals(seen_deals)
+        print(f"[Cleanup] {len(expired_keys)} पुराने seen आइटम ({SEEN_EXPIRY_DAYS} दिन पुराने) हटा दिए गए।")
 
 
 def send_telegram(msg: str, retry_forever: bool = False) -> bool:
@@ -184,10 +186,12 @@ def send_telegram(msg: str, retry_forever: bool = False) -> bool:
             except Exception:
                 pass
 
+            print(f"[Telegram Error - Attempt {attempt}]: {r.status_code} {r.text}")
             if not retry_forever:
                 return False
             time.sleep(retry_after)
-        except Exception:
+        except Exception as e:
+            print(f"[Telegram Exception - Attempt {attempt}]: {e}")
             if not retry_forever:
                 return False
             time.sleep(TELEGRAM_RETRY_DELAY)
@@ -245,7 +249,7 @@ def extract_discount_percent(full_text: str) -> int:
     for d in re.findall(r"\(?\s*(\d{1,3})\s*%\s*off\s*\)?", full_text, flags=re.IGNORECASE):
         try:
             d_val = int(d)
-            if 1 <= d_val <= 100:
+            if 1 <= d_val <= 99:
                 discounts.append(d_val)
         except ValueError:
             pass
@@ -318,21 +322,14 @@ def extract_product_info(item):
     return title, product_link, asin
 
 
-def build_loot_search_url(kw: str, page_no: int = 1) -> str:
-    query = kw.strip().replace(" ", "+")
-    url = (
-        f"https://www.amazon.in/s?k={query}"
-        f"&rh=p_n_free_shipping_eligible%3A1"
-        f"&pct-off={MIN_DISCOUNT}-{MAX_DISCOUNT}"
-    )
-    if page_no > 1:
-        url += f"&page={page_no}"
-    return url
-
-
 def scrape_amazon_page(session: requests.Session, kw: str, page_no: int = 1):
-    url = build_loot_search_url(kw, page_no=page_no)
-    resp = session.get(url, headers=make_amazon_headers(), timeout=12)
+    query = kw.strip().replace(" ", "+")
+    if page_no <= 1:
+        url = f"https://www.amazon.in/s?k={query}"
+    else:
+        url = f"https://www.amazon.in/s?k={query}&page={page_no}"
+
+    resp = session.get(url, headers=make_amazon_headers(), timeout=10)
     code = resp.status_code
 
     if code != 200 or is_captcha_or_block_page(resp.text):
@@ -356,28 +353,18 @@ def scrape_amazon_page(session: requests.Session, kw: str, page_no: int = 1):
         if "currently unavailable" in lower_text or "page not found" in lower_text:
             continue
 
+        price, discount = extract_price_and_discount(item, text)
+        free_del = has_free_delivery(text)
+        if not ((discount >= MIN_DISCOUNT) and (price is not None) and (0 < price <= MAX_PRICE) and free_del):
+            continue
+
         title, link, asin = extract_product_info(item)
         if not title or not link:
             continue
 
-        price, discount = extract_price_and_discount(item, text)
-        free_del = has_free_delivery(text)
-
-        # कीमत की कोई सीमा नहीं — ₹20 हो, ₹1,000 हो या ₹1,00,000 हो
-        # बस 90%+ ऑफ और Free Delivery होना ज़रूरी है
-        if not ((MIN_DISCOUNT <= discount <= MAX_DISCOUNT) and free_del):
-            continue
-
         sig = f"asin:{asin}" if asin else f"{link.lower()}|{title.lower()[:70]}"
         legacy_sig = f"{link.lower()}|{title.lower()[:70]}"
-        deals.append({
-            "sig": sig,
-            "legacy_sig": legacy_sig,
-            "title": title,
-            "price": price,
-            "discount": discount,
-            "link": link,
-        })
+        deals.append({"sig": sig, "legacy_sig": legacy_sig, "title": title, "price": price, "discount": discount, "link": link})
 
     del soup
     return {"status": "ok", "err_tag": "", "count": count, "reason": "", "deals": deals}
@@ -394,7 +381,6 @@ def build_batch_report(
     total_page_items: int,
     batch_deals: int,
     zero_items_detail: list,
-    bad_items_detail: list,
     batch_kw_counts: list,
 ) -> str:
     batch_len = end_idx - start_idx
@@ -403,9 +389,6 @@ def build_batch_report(
         f"ℹ️ बैच {batch_num}/{total_batches} (#{start_idx+1}-{end_idx}): {ok_count}/{batch_len} नाम 200 OK गए, {zero_count} में 0 आइटम दिखे, {bad_count} में एरर।",
         f"• सही गए (200 OK): {ok_count}/{batch_len} | 0 आइटम: {zero_count} | एरर: {bad_count} | कुल पेज आइटम: {total_page_items} | नई लूट: {batch_deals}",
     ]
-
-    if bad_items_detail:
-        lines.append(f"• ❌ एरर वाले नाम [{len(bad_items_detail)}]: " + ", ".join(bad_items_detail[:12]))
 
     if zero_items_detail:
         lines.append(f"• ⚪ 0 आइटम वाले नाम [{len(zero_items_detail)}]: " + ", ".join(zero_items_detail[:8]))
@@ -453,14 +436,12 @@ def scan_once():
             total_page_items = 0
             b_deals = 0
             zero_items_detail = []
-            bad_items_detail = []
             batch_kw_counts = []
 
             for kw in batch_kws:
                 kw_total_items = 0
                 kw_deals_found = 0
                 kw_had_bad = False
-                kw_bad_tag = ""
                 kw_had_ok = False
                 kw_zero_reason = ""
 
@@ -481,12 +462,11 @@ def scan_once():
                                 if (sig in seen_deals) or (legacy_sig and legacy_sig in seen_deals):
                                     continue
 
-                                price_txt = f"₹{d['price']}" if d["price"] is not None else "N/A"
                                 msg = (
-                                    f"🔥 AMAZON LOOT ({MIN_DISCOUNT}%+ OFF | ANY PRICE | FREE DELIVERY)\n\n"
-                                    f"🔎 Keyword: {kw} (Page {page_no})\n"
+                                    f"🔥 TRIPLE LOOT (Amazon | {MIN_DISCOUNT}%+ OFF | <=₹{MAX_PRICE} | FREE DELIVERY)\n\n"
+                                    f"🔎 Keyword: {kw} (Page {page_no} | पेज आइटम: {cnt})\n"
                                     f"🛍️ {d['title'][:160]}\n"
-                                    f"💰 Price: {price_txt} | 🏷️ Discount: {d['discount']}% | 🚚 Free Delivery: Yes\n"
+                                    f"💰 Price: ₹{d['price']} | 🏷️ Discount: {d['discount']}% | 🚚 Free Delivery: Yes\n"
                                     f"🔗 {d['link']}"
                                 )
                                 if send_telegram(msg, retry_forever=True):
@@ -507,16 +487,14 @@ def scan_once():
 
                         else:
                             kw_had_bad = True
-                            kw_bad_tag = res["err_tag"]
                             consecutive_bad += 1
-                            print(f"[Amazon {kw_bad_tag}] {kw} (page {page_no})")
+                            print(f"[Amazon {res['err_tag']}] {kw} (page {page_no})")
                             session.close()
                             session = build_amazon_session()
                             break
 
                     except Exception as e:
                         kw_had_bad = True
-                        kw_bad_tag = type(e).__name__
                         consecutive_bad += 1
                         print(f"[Amazon Error {kw} page {page_no}]: {e}")
                         session.close()
@@ -532,14 +510,13 @@ def scan_once():
                     total_page_items += kw_total_items
                 elif kw_had_bad:
                     bad_count += 1
-                    bad_items_detail.append(f"{kw} ({kw_bad_tag})")
 
                 batch_kw_counts.append((kw, kw_total_items, kw_deals_found))
 
                 if consecutive_bad >= MAX_CONSECUTIVE_BAD:
                     send_alert_safe(
                         f"⏸️ स्मार्ट ब्रेक सक्रिय!\n"
-                        f"• Amazon पर लगातार {consecutive_bad} ब्लॉक/एरर आए (आखिरी: {kw_bad_tag})।\n"
+                        f"• Amazon पर लगातार {consecutive_bad} ब्लॉक/एरर आए।\n"
                         f"• बॉट {COOLDOWN_SECONDS // 60} मिनट रुकेगा, फिर संभलकर चलेगा।"
                     )
                     time.sleep(COOLDOWN_SECONDS)
@@ -564,7 +541,6 @@ def scan_once():
                 total_page_items=total_page_items,
                 batch_deals=b_deals,
                 zero_items_detail=zero_items_detail,
-                bad_items_detail=bad_items_detail,
                 batch_kw_counts=batch_kw_counts,
             )
             send_alert_safe(batch_msg)
@@ -575,7 +551,7 @@ def scan_once():
         gc.collect()
 
     send_alert_safe(
-        f"🏁 Full Cycle Complete ({total_kw} Keywords)\n"
+        f"🏁 Full Amazon Cycle Complete ({total_kw} Keywords)\n"
         f"• कुल नई लूट भेजी गई: {overall_deals}\n"
         f"• अब {LOOP_DELAY // 60} मिनट बाद अगला राउंड होगा।"
     )
@@ -590,9 +566,10 @@ def background_worker():
 
     try:
         initial_kws = load_keywords_from_file(KEYWORDS_FILE_PATH)
+        print(f"Amazon Filter-Style Loot Bot Started ({len(initial_kws)} Keywords)...")
         send_alert_safe(
-            f"🔥 Amazon Loot बॉट चालू हो गया!\n"
-            f"• फ़िल्टर: {MIN_DISCOUNT}%+ OFF + ANY PRICE + Free Delivery\n"
+            f"🤖 Amazon Advanced Loot बॉट चालू हो गया!\n"
+            f"• फ़िल्टर: {MIN_DISCOUNT}%+ OFF | ₹{MAX_PRICE} या कम | Free Delivery (Max {MAX_PAGES} Pages)\n"
             f"• कीवर्ड्स: {len(initial_kws)} ({KEYWORDS_FILE_PATH})"
         )
 
