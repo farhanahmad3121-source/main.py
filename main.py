@@ -18,7 +18,7 @@ app = Flask(__name__)
 @app.route("/")
 @app.route("/health")
 def home():
-    return "Amazon 95% Any Price Free Delivery Loot Bot Running!"
+    return "Amazon 80-100% Free Delivery Loot Bot Running!"
 
 
 def run_flask():
@@ -32,7 +32,8 @@ TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 KEYWORDS_FILE_PATH = os.environ.get("KEYWORDS_FILE", "keywords/keywords.txt")
 SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
 
-MIN_DISCOUNT = 95
+MIN_DISCOUNT = 80
+MAX_DISCOUNT = 100
 MAX_PAGES = 2
 BATCH_SIZE = 50
 LOOP_DELAY = 600
@@ -244,7 +245,7 @@ def extract_discount_percent(full_text: str) -> int:
     for d in re.findall(r"\(?\s*(\d{1,3})\s*%\s*off\s*\)?", full_text, flags=re.IGNORECASE):
         try:
             d_val = int(d)
-            if 1 <= d_val <= 99:
+            if 1 <= d_val <= 100:
                 discounts.append(d_val)
         except ValueError:
             pass
@@ -322,7 +323,7 @@ def build_loot_search_url(kw: str, page_no: int = 1) -> str:
     url = (
         f"https://www.amazon.in/s?k={query}"
         f"&rh=p_n_free_shipping_eligible%3A1"
-        f"&pct-off={MIN_DISCOUNT}-100"
+        f"&pct-off={MIN_DISCOUNT}-{MAX_DISCOUNT}"
     )
     if page_no > 1:
         url += f"&page={page_no}"
@@ -362,8 +363,8 @@ def scrape_amazon_page(session: requests.Session, kw: str, page_no: int = 1):
         price, discount = extract_price_and_discount(item, text)
         free_del = has_free_delivery(text)
 
-        # कीमत की कोई सीमा नहीं — बस 95%+ ऑफ और Free Delivery
-        if not ((discount >= MIN_DISCOUNT) and free_del):
+        # कीमत की कोई सीमा नहीं — बस 80% से 100% ऑफ और Free Delivery
+        if not ((MIN_DISCOUNT <= discount <= MAX_DISCOUNT) and free_del):
             continue
 
         sig = f"asin:{asin}" if asin else f"{link.lower()}|{title.lower()[:70]}"
@@ -481,7 +482,7 @@ def scan_once():
 
                                 price_txt = f"₹{d['price']}" if d["price"] is not None else "N/A"
                                 msg = (
-                                    f"🔥 AMAZON LOOT ({MIN_DISCOUNT}%+ OFF | ANY PRICE | FREE DELIVERY)\n\n"
+                                    f"🔥 AMAZON LOOT ({MIN_DISCOUNT}-{MAX_DISCOUNT}% OFF | ANY PRICE | FREE DELIVERY)\n\n"
                                     f"🔎 Keyword: {kw} (Page {page_no})\n"
                                     f"🛍️ {d['title'][:160]}\n"
                                     f"💰 Price: {price_txt} | 🏷️ Discount: {d['discount']}% | 🚚 Free Delivery: Yes\n"
@@ -590,7 +591,7 @@ def background_worker():
         initial_kws = load_keywords_from_file(KEYWORDS_FILE_PATH)
         send_alert_safe(
             f"🔥 Amazon Loot बॉट चालू हो गया!\n"
-            f"• फ़िल्टर: {MIN_DISCOUNT}%+ OFF + ANY PRICE (₹100 से ₹10,000+ तक) + Free Delivery\n"
+            f"• फ़िल्टर: {MIN_DISCOUNT}-{MAX_DISCOUNT}% OFF + ANY PRICE + Free Delivery\n"
             f"• कीवर्ड्स: {len(initial_kws)} ({KEYWORDS_FILE_PATH})"
         )
 
