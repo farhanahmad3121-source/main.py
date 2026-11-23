@@ -18,7 +18,7 @@ app = Flask(__name__)
 @app.route("/")
 @app.route("/health")
 def home():
-    return "Amazon 95% Free Delivery Loot Bot Running!"
+    return "Amazon 95% Any Price Free Delivery Loot Bot Running!"
 
 
 def run_flask():
@@ -157,7 +157,7 @@ def cleanup_old_seen_deals():
 
 def send_telegram(msg: str, retry_forever: bool = False) -> bool:
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("[Error] BOT_TOKEN ya CHAT_ID set nahi hai.")
+        print("[Error] BOT_TOKEN या CHAT_ID सेट नहीं है।")
         return False
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -221,10 +221,10 @@ def classify_zero_items_reason(html_text: str) -> str:
         "no products found",
     ]
     if any(p in t for p in no_res_phrases):
-        return "koi result nahi"
+        return "कोई रिजल्ट नहीं"
     if "something went wrong" in t or "sorry!" in t:
-        return "error page"
-    return "khali/alag layout"
+        return "एरर पेज"
+    return "खाली/अलग लेआउट"
 
 
 def parse_price_int(raw_str: str):
@@ -323,7 +323,6 @@ def build_loot_search_url(kw: str, page_no: int = 1) -> str:
         f"https://www.amazon.in/s?k={query}"
         f"&rh=p_n_free_shipping_eligible%3A1"
         f"&pct-off={MIN_DISCOUNT}-100"
-        f"&s=price-asc-rank"
     )
     if page_no > 1:
         url += f"&page={page_no}"
@@ -363,6 +362,7 @@ def scrape_amazon_page(session: requests.Session, kw: str, page_no: int = 1):
         price, discount = extract_price_and_discount(item, text)
         free_del = has_free_delivery(text)
 
+        # कीमत की कोई सीमा नहीं — बस 95%+ ऑफ और Free Delivery
         if not ((discount >= MIN_DISCOUNT) and free_del):
             continue
 
@@ -398,27 +398,27 @@ def build_batch_report(
     batch_len = end_idx - start_idx
     lines = [
         f"📦 Batch Report ({batch_num}/{total_batches}) — Keywords #{start_idx+1} to {end_idx}",
-        f"ℹ️ Batch {batch_num}/{total_batches} (#{start_idx+1}-{end_idx}): {ok_count}/{batch_len} naam 200 OK gaye, {zero_count} mein 0 item dikhe, {bad_count} mein error.",
-        f"• Sahi gaye (200 OK): {ok_count}/{batch_len} | 0 item: {zero_count} | Error: {bad_count} | Kul page item: {total_page_items} | Nayi loot: {batch_deals}",
+        f"ℹ️ बैच {batch_num}/{total_batches} (#{start_idx+1}-{end_idx}): {ok_count}/{batch_len} नाम 200 OK गए, {zero_count} में 0 आइटम दिखे, {bad_count} में एरर।",
+        f"• सही गए (200 OK): {ok_count}/{batch_len} | 0 आइटम: {zero_count} | एरर: {bad_count} | कुल पेज आइटम: {total_page_items} | नई लूट: {batch_deals}",
     ]
 
     if bad_items_detail:
-        lines.append(f"• ❌ Error wale naam [{len(bad_items_detail)}]: " + ", ".join(bad_items_detail[:12]))
+        lines.append(f"• ❌ एरर वाले नाम [{len(bad_items_detail)}]: " + ", ".join(bad_items_detail[:12]))
 
     if zero_items_detail:
-        lines.append(f"• ⚪ 0 item wale naam [{len(zero_items_detail)}]: " + ", ".join(zero_items_detail[:8]))
+        lines.append(f"• ⚪ 0 आइटम वाले नाम [{len(zero_items_detail)}]: " + ", ".join(zero_items_detail[:8]))
 
-    lines.append("\n📋 Is batch ke har naam par check hue item:")
+    lines.append("\n📋 इस बैच के हर नाम पर चेक हुए आइटम:")
     for kw, cnt, d_cnt in batch_kw_counts:
-        row_txt = f"• {kw}: {cnt} page item" + (f" (🔥{d_cnt} loot)" if d_cnt > 0 else " (0 loot)")
+        row_txt = f"• {kw}: {cnt} पेज आइटम" + (f" (🔥{d_cnt} लूट)" if d_cnt > 0 else " (0 लूट)")
         current_len = sum(len(x) + 1 for x in lines)
         if current_len + len(row_txt) > 3880:
-            lines.append("... (message limit ke kaaran baaki naam kate)")
+            lines.append("... (मैसेज लिमिट के कारण बाकी नाम कटे)")
             break
         lines.append(row_txt)
 
     report = "\n".join(lines)
-    return report[:3940] + "\n... (kati)" if len(report) > 3950 else report
+    return report[:3940] + "\n... (कटी)" if len(report) > 3950 else report
 
 
 def scan_once():
@@ -430,7 +430,7 @@ def scan_once():
     keywords = load_keywords_from_file(KEYWORDS_FILE_PATH)
     total_kw = len(keywords)
     if total_kw == 0:
-        send_alert_safe(f"⚠️ '{KEYWORDS_FILE_PATH}' mein koi keyword nahi mila!")
+        send_alert_safe(f"⚠️ '{KEYWORDS_FILE_PATH}' में कोई कीवर्ड नहीं मिला!")
         return
 
     total_batches = (total_kw + BATCH_SIZE - 1) // BATCH_SIZE
@@ -481,7 +481,7 @@ def scan_once():
 
                                 price_txt = f"₹{d['price']}" if d["price"] is not None else "N/A"
                                 msg = (
-                                    f"🔥 AMAZON LOOT ({MIN_DISCOUNT}%+ OFF | FREE DELIVERY)\n\n"
+                                    f"🔥 AMAZON LOOT ({MIN_DISCOUNT}%+ OFF | ANY PRICE | FREE DELIVERY)\n\n"
                                     f"🔎 Keyword: {kw} (Page {page_no})\n"
                                     f"🛍️ {d['title'][:160]}\n"
                                     f"💰 Price: {price_txt} | 🏷️ Discount: {d['discount']}% | 🚚 Free Delivery: Yes\n"
@@ -536,9 +536,9 @@ def scan_once():
 
                 if consecutive_bad >= MAX_CONSECUTIVE_BAD:
                     send_alert_safe(
-                        f"⏸️ Smart break active!\n"
-                        f"• Amazon par lagatar {consecutive_bad} block/error aaye (aakhiri: {kw_bad_tag}).\n"
-                        f"• Bot {COOLDOWN_SECONDS // 60} minute rukega, phir chalega."
+                        f"⏸️ स्मार्ट ब्रेक सक्रिय!\n"
+                        f"• Amazon पर लगातार {consecutive_bad} ब्लॉक/एरर आए (आखिरी: {kw_bad_tag})।\n"
+                        f"• बॉट {COOLDOWN_SECONDS // 60} मिनट रुकेगा, फिर संभलकर चलेगा।"
                     )
                     time.sleep(COOLDOWN_SECONDS)
                     consecutive_bad = 0
@@ -574,8 +574,8 @@ def scan_once():
 
     send_alert_safe(
         f"🏁 Full Cycle Complete ({total_kw} Keywords)\n"
-        f"• Kul nayi loot bheji gayi: {overall_deals}\n"
-        f"• Ab {LOOP_DELAY // 60} minute baad agla round hoga."
+        f"• कुल नई लूट भेजी गई: {overall_deals}\n"
+        f"• अब {LOOP_DELAY // 60} मिनट बाद अगला राउंड होगा।"
     )
 
 
@@ -589,9 +589,9 @@ def background_worker():
     try:
         initial_kws = load_keywords_from_file(KEYWORDS_FILE_PATH)
         send_alert_safe(
-            f"🔥 Amazon Loot Bot chalu ho gaya!\n"
-            f"• Filter: {MIN_DISCOUNT}%+ OFF + Free Delivery\n"
-            f"• Keywords: {len(initial_kws)} ({KEYWORDS_FILE_PATH})"
+            f"🔥 Amazon Loot बॉट चालू हो गया!\n"
+            f"• फ़िल्टर: {MIN_DISCOUNT}%+ OFF + ANY PRICE (₹100 से ₹10,000+ तक) + Free Delivery\n"
+            f"• कीवर्ड्स: {len(initial_kws)} ({KEYWORDS_FILE_PATH})"
         )
 
         cycle_no = 0
@@ -602,7 +602,7 @@ def background_worker():
             except Exception as cycle_err:
                 tb_short = traceback.format_exc()[-900:]
                 send_alert_safe(
-                    f"⚠️ Run #{cycle_no} mein error:\n"
+                    f"⚠️ रन #{cycle_no} में एरर:\n"
                     f"• {type(cycle_err).__name__}: {cycle_err}\n"
                     f"• Trace:\n{tb_short}"
                 )
@@ -614,7 +614,7 @@ def background_worker():
     except Exception as fatal_err:
         tb_fatal = traceback.format_exc()[-900:]
         send_alert_safe(
-            f"🛑 Bot worker dead ho gaya:\n"
+            f"🛑 बॉट वर्कर डेड हो गया:\n"
             f"• {type(fatal_err).__name__}: {fatal_err}\n"
             f"• Trace:\n{tb_fatal}"
         )
