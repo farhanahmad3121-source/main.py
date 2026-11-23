@@ -1,3 +1,9 @@
+"wooden chopping board", "plastic chopping board", "stainless steel colander", "tea strainer mesh", "silicone spatula set", "kitchen tongs set", "ice cube tray", "oil dispenser plastic", "glass storage jar", "airtight food container",
+"screw driver set magnetic", "combination pliers", "wire stripper cutter", "allen key set", "adjustable wrench spanner", "double sided tape heavy duty", "electrical insulation tape", "nylon cable ties", "adhesive wall hooks", "magnetic tool bar",
+"usb type c cable braided", "micro usb cable", "3.5mm audio splitter", "bluetooth audio adapter", "laptop sleeve bag", "gaming mouse pad large", "desk mat leatherette", "surge protector strip", "universal travel adapter", "cord winder clips",
+"shaving brush badger", "safety razor blades", "jade face roller", "gua sha scraping tool", "trigger point massage ball", "orthopedic neck pillow", "gel eye compress", "hair claw clips", "scrunchies hair bands", "earplugs noise reduction",
+"pencil pouch zipper", "geometry box compass", "whiteboard markers set", "sticky notes pad", "bookends metal pair", "water dispenser pump", "insulated flask bottle", "travel toiletry bag", "shoe polish brush", "lint roller clothes"
+
 "crystal serving bowl", "cake stand decorative", "dry fruit tray set", "brass kalash pot", "pooja bell brass", "incense burner holder", "dressing table mirror", "wardrobe saree organizer", "under bed storage bag", " blanket storage bag",
 "electric milk frother", "bread toaster 4 slice", "silicone cake mould", "pizza cutter wheel", "basting pastry brush", "ice cream scoop", "mortar pestle granite", "momos steamer pot", "egg poacher pan", "measuring cup spoon set",
 "garden pressure sprayer", "garden hose pipe expandable", "spin mop refill", "window glass wiper", "garbage bags roll", "sink strainer basket", "drain hair catcher", "toilet brush set", "bathroom corner shelf", "liquid soap dispenser",
