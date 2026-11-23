@@ -18,7 +18,7 @@ app = Flask(__name__)
 @app.route("/")
 @app.route("/health")
 def home():
-    return "Amazon Loot Bot Running!"
+    return "Amazon 95% Free Delivery Loot Bot Running!"
 
 
 def run_flask():
@@ -30,31 +30,9 @@ TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 
 KEYWORDS_FILE_PATH = os.environ.get("KEYWORDS_FILE", "keywords/keywords.txt")
-CHEAP_ITEMS_FILE_PATH = os.environ.get("CHEAP_ITEMS_FILE", "keywords/cheap_items.txt")
 SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
 
-DEFAULT_CHEAP_ITEM_NAMES = [
-    "cable",
-    "lead",
-    "wire",
-    "cord",
-    "usb",
-    "cover",
-    "case",
-    "tempered",
-    "glass",
-    "guard",
-    "pouch",
-    "holder",
-    "stand",
-    "sticker",
-    "strap",
-    "belt",
-]
-
-MIN_DISCOUNT = 90
-MAX_PRICE = 100
-CHEAP_ITEM_MAX_PRICE = 20
+MIN_DISCOUNT = 95
 MAX_PAGES = 2
 BATCH_SIZE = 50
 LOOP_DELAY = 600
@@ -76,67 +54,6 @@ USER_AGENTS = [
 file_io_lock = threading.Lock()
 worker_lock = threading.Lock()
 worker_started = False
-
-
-def save_cheap_item_names(filepath: str = CHEAP_ITEMS_FILE_PATH, names: list = None):
-    items = names if names is not None else DEFAULT_CHEAP_ITEM_NAMES
-    cleaned = []
-    for n in items:
-        s = str(n).strip().lower()
-        if s and s not in cleaned:
-            cleaned.append(s)
-
-    with file_io_lock:
-        try:
-            parent_dir = os.path.dirname(filepath)
-            if parent_dir:
-                os.makedirs(parent_dir, exist_ok=True)
-            tmp_path = f"{filepath}.tmp"
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(cleaned) + ("\n" if cleaned else ""))
-            os.replace(tmp_path, filepath)
-        except Exception as e:
-            print(f"[Cheap Items Save Error] {e}")
-
-
-def load_cheap_item_names(filepath: str = CHEAP_ITEMS_FILE_PATH) -> list:
-    if not os.path.exists(filepath):
-        save_cheap_item_names(filepath, DEFAULT_CHEAP_ITEM_NAMES)
-        return list(DEFAULT_CHEAP_ITEM_NAMES)
-
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            raw_content = f.read().strip()
-
-        if not raw_content:
-            save_cheap_item_names(filepath, DEFAULT_CHEAP_ITEM_NAMES)
-            return list(DEFAULT_CHEAP_ITEM_NAMES)
-
-        items = []
-        for line in raw_content.splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            for part in line.split(","):
-                kw = part.strip().strip('"').strip("'").lower()
-                if kw:
-                    items.append(kw)
-
-        return list(dict.fromkeys(items)) if items else list(DEFAULT_CHEAP_ITEM_NAMES)
-    except Exception as e:
-        print(f"[Cheap Items Load Error] {e}")
-        return list(DEFAULT_CHEAP_ITEM_NAMES)
-
-
-def is_allowed_by_smart_price(title: str, price: int, cheap_names: list) -> bool:
-    if price is None or price <= 0:
-        return False
-
-    t = title.lower()
-    is_cheap_type = any(word in t for word in cheap_names)
-    if is_cheap_type:
-        return price <= CHEAP_ITEM_MAX_PRICE
-    return price <= MAX_PRICE
 
 
 def build_amazon_session() -> requests.Session:
@@ -406,7 +323,6 @@ def build_loot_search_url(kw: str, page_no: int = 1) -> str:
         f"https://www.amazon.in/s?k={query}"
         f"&rh=p_n_free_shipping_eligible%3A1"
         f"&pct-off={MIN_DISCOUNT}-100"
-        f"&high-price={MAX_PRICE}"
         f"&s=price-asc-rank"
     )
     if page_no > 1:
@@ -414,10 +330,7 @@ def build_loot_search_url(kw: str, page_no: int = 1) -> str:
     return url
 
 
-def scrape_amazon_page(session: requests.Session, kw: str, page_no: int = 1, cheap_names: list = None):
-    if cheap_names is None:
-        cheap_names = DEFAULT_CHEAP_ITEM_NAMES
-
+def scrape_amazon_page(session: requests.Session, kw: str, page_no: int = 1):
     url = build_loot_search_url(kw, page_no=page_no)
     resp = session.get(url, headers=make_amazon_headers(), timeout=12)
     code = resp.status_code
@@ -450,11 +363,7 @@ def scrape_amazon_page(session: requests.Session, kw: str, page_no: int = 1, che
         price, discount = extract_price_and_discount(item, text)
         free_del = has_free_delivery(text)
 
-        if not (
-            (discount >= MIN_DISCOUNT)
-            and is_allowed_by_smart_price(title, price, cheap_names)
-            and free_del
-        ):
+        if not ((discount >= MIN_DISCOUNT) and free_del):
             continue
 
         sig = f"asin:{asin}" if asin else f"{link.lower()}|{title.lower()[:70]}"
@@ -518,7 +427,6 @@ def scan_once():
         seen_deals = load_seen_deals()
     cleanup_old_seen_deals()
 
-    cheap_names = load_cheap_item_names(CHEAP_ITEMS_FILE_PATH)
     keywords = load_keywords_from_file(KEYWORDS_FILE_PATH)
     total_kw = len(keywords)
     if total_kw == 0:
@@ -556,7 +464,7 @@ def scan_once():
 
                 for page_no in range(1, max(1, MAX_PAGES) + 1):
                     try:
-                        res = scrape_amazon_page(session, kw, page_no=page_no, cheap_names=cheap_names)
+                        res = scrape_amazon_page(session, kw, page_no=page_no)
                         status = res["status"]
                         cnt = res["count"]
 
@@ -571,11 +479,12 @@ def scan_once():
                                 if (sig in seen_deals) or (legacy_sig and legacy_sig in seen_deals):
                                     continue
 
+                                price_txt = f"₹{d['price']}" if d["price"] is not None else "N/A"
                                 msg = (
-                                    f"🔥 AMAZON LOOT ({MIN_DISCOUNT}%+ OFF | <=₹{MAX_PRICE} / Cheap<=₹{CHEAP_ITEM_MAX_PRICE} | FREE DELIVERY)\n\n"
+                                    f"🔥 AMAZON LOOT ({MIN_DISCOUNT}%+ OFF | FREE DELIVERY)\n\n"
                                     f"🔎 Keyword: {kw} (Page {page_no})\n"
                                     f"🛍️ {d['title'][:160]}\n"
-                                    f"💰 Price: ₹{d['price']} | 🏷️ Discount: {d['discount']}% | 🚚 Free Delivery: Yes\n"
+                                    f"💰 Price: {price_txt} | 🏷️ Discount: {d['discount']}% | 🚚 Free Delivery: Yes\n"
                                     f"🔗 {d['link']}"
                                 )
                                 if send_telegram(msg, retry_forever=True):
@@ -678,11 +587,10 @@ def background_worker():
         worker_started = True
 
     try:
-        cheap_names = load_cheap_item_names(CHEAP_ITEMS_FILE_PATH)
         initial_kws = load_keywords_from_file(KEYWORDS_FILE_PATH)
         send_alert_safe(
             f"🔥 Amazon Loot Bot chalu ho gaya!\n"
-            f"• Filter: {MIN_DISCOUNT}%+ OFF + <=₹{MAX_PRICE} (Cheap<=₹{CHEAP_ITEM_MAX_PRICE}) + Free Delivery\n"
+            f"• Filter: {MIN_DISCOUNT}%+ OFF + Free Delivery\n"
             f"• Keywords: {len(initial_kws)} ({KEYWORDS_FILE_PATH})"
         )
 
