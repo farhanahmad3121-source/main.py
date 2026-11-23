@@ -1,3 +1,16 @@
+"mattress double bed", "sofa cover set", "dining table mat", "living room rug", "hallway runner carpet", "brass diya stand", "ganesha idol decorative", "buddha statue decor", "tea pot kettle set", "glass tumbler set 6pc",
+"wine glass set", "champagne flute set", "serving bowl set", "chutney bowl set", "chapati box insulated", "rice container airtight", "grain storage jar", "pulses container set", "spice box masala dabba", "pickle jar glass",
+"manual food chopper", "vegetable slicer mandoline", "box grater steel", "garlic press crusher", "lemon squeezer", "potato masher", "dough roller chakla belan", "oil dispenser glass", "oil spray bottle", "kitchen apron waterproof",
+"chandelier ceiling light", "pendant light fixture", "solar garden light", "sensor night lamp", "wooden photo frame", "collage photo frame", "wall mirror decorative", "metal wind chime", "artificial bonsai plant", "ceramic planter pot",
+"canvas wall painting", "macrame wall hanging", "door mat anti skid", "bath mat chenille", "toilet seat cover", "shower curtain waterproof", "soap dispenser pump", "toothbrush holder stand", "towel rack wall", "cloth drying stand",
+"wifi router dual band", "wifi range extender", "usb webcam hd", "wireless keyboard mouse", "usb flash drive", "micro sd card", "hdmi cable 4k", "vga cable", "ethernet lan cable", "audio aux cable",
+"mini projector portable", "smart wifi bulb", "smart plug socket", "motion sensor light", "solar street light", "rechargeable table fan", "mosquito racket bat", "insect killer lamp", "water level controller", "door sensor alarm",
+"hair curler tong", "beard trimmer cordless", "nose ear trimmer", "percussion massage gun", "foot massager machine", "neck shoulder massager", "acupressure mat", "dumbbell set pair", "push up bar stand", "ab roller wheel",
+"gym duffle bag", "yoga mat bag", "skipping rope digital", "resistance tube band", "wrist support wrap", "knee cap supporter", "posture belt back", "hot bag gel pack", "heating belt pain", "pulse oximeter finger",
+"school backpack kids", "kids water bottle sipper", "kids tiffin box", "study table lamp led", "book reading stand", "pen stand organizer", "desk drawer cabinet", "luggage trolley cover", "travel neck pillow", "passport holder",
+"remote control car", "diecast toy car", "kids musical toy", "educational flash cards", "chess board set", "ludo board game", "carrom board coins", "badminton racket pair", "cricket bat willow", "football size 5",
+"car dashcam camera", "car seat cover set", "car floor mats 7d", "car sun visor", "car mobile holder", "car tyre inflator", "bike helmet full face", "bike riding jacket", "bike chain spray", "bike cover dustproof"
+
 "mixer grinder", "juicer mixer grinder", "food processor", "hand blender", "immersion blender", "electric kettle", "induction cooktop", "microwave oven", "otg oven", "air fryer",
 "pop up toaster", "sandwich maker", "griller toaster", "wet grinder", "flour mill atta chakki", "roti maker electric", "egg boiler", "coffee maker", "espresso machine", "cold press juicer",
 "washing machine fully automatic", "semi automatic washing machine", "top load washing machine", "front load washing machine", "dryer machine", "dish washer", "split ac", "window ac", "desert air cooler", "tower cooler",
