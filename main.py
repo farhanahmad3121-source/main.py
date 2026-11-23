@@ -18,7 +18,7 @@ app = Flask(__name__)
 @app.route("/")
 @app.route("/health")
 def home():
-    return "Amazon 80-100% Free Delivery Loot Bot Running!"
+    return "Amazon 90%+ Any Price Free Delivery Loot Bot Running!"
 
 
 def run_flask():
@@ -32,7 +32,7 @@ TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 KEYWORDS_FILE_PATH = os.environ.get("KEYWORDS_FILE", "keywords/keywords.txt")
 SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
 
-MIN_DISCOUNT = 80
+MIN_DISCOUNT = 90
 MAX_DISCOUNT = 100
 MAX_PAGES = 2
 BATCH_SIZE = 50
@@ -363,7 +363,8 @@ def scrape_amazon_page(session: requests.Session, kw: str, page_no: int = 1):
         price, discount = extract_price_and_discount(item, text)
         free_del = has_free_delivery(text)
 
-        # कीमत की कोई सीमा नहीं — बस 80% से 100% ऑफ और Free Delivery
+        # कीमत की कोई सीमा नहीं — ₹20 हो, ₹1,000 हो या ₹1,00,000 हो
+        # बस 90%+ ऑफ और Free Delivery होना ज़रूरी है
         if not ((MIN_DISCOUNT <= discount <= MAX_DISCOUNT) and free_del):
             continue
 
@@ -482,7 +483,7 @@ def scan_once():
 
                                 price_txt = f"₹{d['price']}" if d["price"] is not None else "N/A"
                                 msg = (
-                                    f"🔥 AMAZON LOOT ({MIN_DISCOUNT}-{MAX_DISCOUNT}% OFF | ANY PRICE | FREE DELIVERY)\n\n"
+                                    f"🔥 AMAZON LOOT ({MIN_DISCOUNT}%+ OFF | ANY PRICE | FREE DELIVERY)\n\n"
                                     f"🔎 Keyword: {kw} (Page {page_no})\n"
                                     f"🛍️ {d['title'][:160]}\n"
                                     f"💰 Price: {price_txt} | 🏷️ Discount: {d['discount']}% | 🚚 Free Delivery: Yes\n"
@@ -591,7 +592,7 @@ def background_worker():
         initial_kws = load_keywords_from_file(KEYWORDS_FILE_PATH)
         send_alert_safe(
             f"🔥 Amazon Loot बॉट चालू हो गया!\n"
-            f"• फ़िल्टर: {MIN_DISCOUNT}-{MAX_DISCOUNT}% OFF + ANY PRICE + Free Delivery\n"
+            f"• फ़िल्टर: {MIN_DISCOUNT}%+ OFF + ANY PRICE + Free Delivery\n"
             f"• कीवर्ड्स: {len(initial_kws)} ({KEYWORDS_FILE_PATH})"
         )
 
