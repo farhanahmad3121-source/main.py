@@ -32,7 +32,7 @@ TELEGRAM_CHAT_ID = os.environ.get("CHAT_ID", "")
 KEYWORDS_FILE_PATH = os.environ.get("KEYWORDS_FILE", "keywords/keywords.txt")
 SEEN_DEALS_FILE_PATH = os.environ.get("SEEN_DEALS_FILE", "data/seen_deals.json")
 
-MIN_DISCOUNT = 95                  # 90% या उससे ज़्यादा ऑफ़
+MIN_DISCOUNT = 85                  # 90% या उससे ज़्यादा ऑफ़
 MAX_PRICE = 1000000                    # ₹100 या उससे कम
 MAX_PAGES = 19                      # प्रति कीवर्ड अधिकतम कितने पेज चेक करने हैं (1 या 2+)
 BATCH_SIZE = 50                    # हर 50 कीवर्ड के बाद बैच रिपोर्ट
